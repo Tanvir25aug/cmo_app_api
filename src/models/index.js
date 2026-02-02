@@ -2,6 +2,9 @@ const { sequelize } = require('../config/database');
 const User = require('./User');
 const AdminSecurity = require('./AdminSecurity');
 const CMO = require('./CMO');
+const MeterInfo = require('./MeterInfo');
+const NOCS = require('./NOCS');
+const DCU = require('./DCU');
 
 // Define associations with AdminSecurity (primary authentication table)
 AdminSecurity.hasMany(CMO, {
@@ -36,5 +39,8 @@ module.exports = {
   User,
   AdminSecurity,
   CMO,
+  MeterInfo,
+  NOCS,
+  DCU,
   syncDatabase
 };

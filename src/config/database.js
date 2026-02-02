@@ -20,9 +20,11 @@ const sequelize = new Sequelize(
       options: {
         encrypt: false,
         trustServerCertificate: true,
-        enableArithAbort: true
+        enableArithAbort: true,
+        useUTC: true
       }
-    }
+    },
+    timezone: '+00:00'
   }
 );
 

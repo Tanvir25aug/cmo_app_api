@@ -64,15 +64,27 @@ class CMOController {
   // Sync CMOs (bulk upload from mobile)
   async sync(req, res) {
     try {
-      const { cmos } = req.body;
+      // Accept both 'cmos' and 'CMOs' from request body
+      const cmos = req.body.cmos || req.body.CMOs;
 
       if (!Array.isArray(cmos)) {
         return errorResponse(res, 'CMOs must be an array', 400);
       }
 
-      const result = await cmoService.syncCMOs(req.userId, cmos);
+      const result = await cmoService.syncCMOs(req.userId, cmos, req.securityId);
       logger.info(`Sync completed: ${result.success.length} succeeded, ${result.failed.length} failed`);
-      return successResponse(res, result, 'Sync completed');
+
+      // Return appropriate response based on results
+      if (result.failed.length > 0 && result.success.length === 0) {
+        // All failed
+        return errorResponse(res, 'Data sync failed', 400, result);
+      } else if (result.failed.length > 0 && result.success.length > 0) {
+        // Partial success
+        return successResponse(res, result, `Partial sync: ${result.success.length} succeeded, ${result.failed.length} failed`);
+      } else {
+        // All succeeded
+        return successResponse(res, result, 'Data sync successful');
+      }
     } catch (error) {
       logger.error(`Sync error: ${error.message}`);
       return errorResponse(res, error.message, 400);

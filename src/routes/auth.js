@@ -13,4 +13,10 @@ router.get('/profile', auth, authController.getProfile);
 router.put('/profile', auth, authController.updateProfile);
 router.post('/logout', auth, authController.logout);
 
+// Admin User Management routes (protected + admin only)
+router.get('/users', auth, authController.getAllUsers);
+router.post('/users', auth, authController.createUser);
+router.put('/users/:id', auth, authController.updateUser);
+router.delete('/users/:id', auth, authController.deleteUser);
+
 module.exports = router;

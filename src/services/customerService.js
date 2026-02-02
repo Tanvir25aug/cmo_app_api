@@ -1,6 +1,9 @@
 const { sequelize } = require('../config/database');
 const logger = require('../utils/logger');
 
+// Get database name from environment variable
+const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+
 class CustomerService {
   /**
    * Get customer by OLD_CONSUMER_ID
@@ -81,7 +84,7 @@ class CustomerService {
           [SUB_STATION_NAME],
           [FEEDER_CD],
           [FEEDER_NAME]
-        FROM [MeterOCRDESCO].[dbo].[Customer]
+        FROM [${DB_NAME}].[dbo].[Customer]
         WHERE [OLD_CONSUMER_ID] = :oldConsumerId
       `;
 
@@ -109,7 +112,7 @@ class CustomerService {
     try {
       const query = `
         SELECT COUNT(*) as count
-        FROM [MeterOCRDESCO].[dbo].[Customer]
+        FROM [${DB_NAME}].[dbo].[Customer]
       `;
 
       const [result] = await sequelize.query(query, {
@@ -223,7 +226,7 @@ class CustomerService {
             [SUB_STATION_NAME],
             [FEEDER_CD],
             [FEEDER_NAME]
-          FROM [MeterOCRDESCO].[dbo].[Customer]
+          FROM [${DB_NAME}].[dbo].[Customer]
           ORDER BY [ID] DESC
         )
         SELECT *
@@ -271,7 +274,7 @@ class CustomerService {
           [NOCS],
           [FEEDER_NAME],
           [BILL_GROUP]
-        FROM [MeterOCRDESCO].[dbo].[Customer]
+        FROM [${DB_NAME}].[dbo].[Customer]
         WHERE
           [OLD_CONSUMER_ID] LIKE :searchTerm OR
           [CUSTOMER_NAME] LIKE :searchTerm OR
@@ -302,7 +305,7 @@ class CustomerService {
     try {
       const countQuery = `
         SELECT COUNT(*) as count
-        FROM [MeterOCRDESCO].[dbo].[Customer]
+        FROM [${DB_NAME}].[dbo].[Customer]
         WHERE [ZONE_CODE] = :zoneCode
       `;
 
@@ -334,7 +337,7 @@ class CustomerService {
           [ZONE_CODE],
           [CIRCLE],
           [AREA]
-        FROM [MeterOCRDESCO].[dbo].[Customer]
+        FROM [${DB_NAME}].[dbo].[Customer]
         WHERE [ZONE_CODE] = :zoneCode
         ORDER BY [OLD_CONSUMER_ID]
         OFFSET :offset ROWS

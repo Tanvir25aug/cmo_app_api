@@ -5,6 +5,8 @@ const router = express.Router();
 const authRoutes = require('./auth');
 const cmoRoutes = require('./cmo');
 const customerRoutes = require('./customer');
+const uploadRoutes = require('./upload');
+const mapRoutes = require('./map');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -21,5 +23,7 @@ router.use('/auth', authRoutes);
 router.use('/cmo', cmoRoutes);
 router.use('/customer', customerRoutes);
 router.use('/customers', customerRoutes);
+router.use('/upload', uploadRoutes);
+router.use('/map', mapRoutes);
 
 module.exports = router;

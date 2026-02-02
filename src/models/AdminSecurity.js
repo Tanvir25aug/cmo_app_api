@@ -20,6 +20,15 @@ const AdminSecurity = sequelize.define('AdminSecurity', {
   UserPwd: {
     type: DataTypes.STRING(100),
     allowNull: true
+  },
+  Rrole: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    defaultValue: 'user'
+  },
+  lastLogin: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   tableName: 'AdminSecurity',
@@ -38,11 +47,13 @@ AdminSecurity.prototype.toJSON = function() {
   const values = { ...this.get() };
   delete values.UserPwd;
 
-  // Return simplified user object
+  // Return simplified user object with role
   return {
     id: values.SecurityId,
     userId: values.UserId,
-    username: values.UserName
+    username: values.UserName,
+    role: values.Rrole || 'user',
+    lastLogin: values.lastLogin
   };
 };
 

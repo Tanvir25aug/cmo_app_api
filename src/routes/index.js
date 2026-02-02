@@ -7,6 +7,7 @@ const cmoRoutes = require('./cmo');
 const customerRoutes = require('./customer');
 const uploadRoutes = require('./upload');
 const mapRoutes = require('./map');
+const reportRoutes = require('./report');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -25,5 +26,6 @@ router.use('/customer', customerRoutes);
 router.use('/customers', customerRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/map', mapRoutes);
+router.use('/reports', reportRoutes);
 
 module.exports = router;

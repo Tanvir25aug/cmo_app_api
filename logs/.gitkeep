@@ -1,0 +1,2 @@
+# This file keeps the logs directory in git
+# PM2 will write log files here

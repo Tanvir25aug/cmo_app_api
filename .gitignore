@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Environment files
 .env
@@ -13,6 +12,7 @@ uploads/
 
 # Logs
 logs/
+!logs/.gitkeep
 *.log
 npm-debug.log*
 
@@ -23,6 +23,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 

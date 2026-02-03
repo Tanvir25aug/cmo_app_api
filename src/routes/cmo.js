@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const cmoController = require('../controllers/cmoController');
+const bulkCmoController = require('../controllers/bulkCmoController');
 const { auth } = require('../middleware/auth');
 const { upload } = require('../config/multer');
 const { validateCMO } = require('../utils/validators');
@@ -12,11 +13,13 @@ router.use(auth);
 router.get('/', cmoController.getAll);
 router.get('/statistics', cmoController.getStatistics);
 router.get('/unsynced', cmoController.getUnsynced);
+router.get('/bulk-stats', bulkCmoController.getBulkStats);
 router.get('/:id', cmoController.getById);
 
 // Post routes
 router.post('/', validateCMO, cmoController.create);
 router.post('/sync', cmoController.sync);
+router.post('/bulk-sync', bulkCmoController.bulkSync);
 
 // Put/Delete routes
 router.put('/:id', validateCMO, cmoController.update);

@@ -2,8 +2,17 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const appVersionController = require('../controllers/appVersionController');
-const { authenticate, isAdmin } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
+
+// Load controller with error handling
+let appVersionController;
+try {
+  appVersionController = require('../controllers/appVersionController');
+  console.log('AppVersion controller loaded successfully');
+} catch (err) {
+  console.error('Failed to load appVersionController:', err.message);
+  appVersionController = {};
+}
 
 // Configure multer for APK uploads
 const storage = multer.diskStorage({
@@ -33,16 +42,29 @@ const upload = multer({
   }
 });
 
+// Helper to create safe handler
+const safeHandler = (handler, name) => {
+  if (typeof handler === 'function') {
+    return handler;
+  }
+  return (req, res) => {
+    res.status(500).json({
+      success: false,
+      message: `Handler ${name} not available - module load error`
+    });
+  };
+};
+
 // Public routes (no auth required)
-router.get('/versions', appVersionController.getAllVersions);
-router.get('/latest', appVersionController.getLatestVersion);
-router.get('/check-update', appVersionController.checkForUpdate);
-router.get('/download/latest', appVersionController.downloadLatest);
-router.get('/download/:id', appVersionController.downloadApk);
+router.get('/versions', safeHandler(appVersionController.getAllVersions, 'getAllVersions'));
+router.get('/latest', safeHandler(appVersionController.getLatestVersion, 'getLatestVersion'));
+router.get('/check-update', safeHandler(appVersionController.checkForUpdate, 'checkForUpdate'));
+router.get('/download/latest', safeHandler(appVersionController.downloadLatest, 'downloadLatest'));
+router.get('/download/:id', safeHandler(appVersionController.downloadApk, 'downloadApk'));
 
 // Protected routes (auth required)
-router.post('/upload', authenticate, upload.single('apk'), appVersionController.uploadVersion);
-router.put('/:id', authenticate, appVersionController.updateVersion);
-router.delete('/:id', authenticate, appVersionController.deleteVersion);
+router.post('/upload', authenticate, upload.single('apk'), safeHandler(appVersionController.uploadVersion, 'uploadVersion'));
+router.put('/:id', authenticate, safeHandler(appVersionController.updateVersion, 'updateVersion'));
+router.delete('/:id', authenticate, safeHandler(appVersionController.deleteVersion, 'deleteVersion'));
 
 module.exports = router;

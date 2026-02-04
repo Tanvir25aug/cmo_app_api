@@ -1,11 +1,24 @@
-const appVersionService = require('../services/appVersionService');
 const { success, error } = require('../utils/response');
 const path = require('path');
 const fs = require('fs');
 
+// Load service with error handling
+let appVersionService;
+try {
+  appVersionService = require('../services/appVersionService');
+  console.log('AppVersion service loaded successfully');
+} catch (err) {
+  console.error('Failed to load appVersionService:', err.message);
+  console.error(err.stack);
+  appVersionService = null;
+}
+
 // Get all versions
 const getAllVersions = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const includeInactive = req.query.all === 'true';
     const versions = await appVersionService.getAllVersions(includeInactive);
 
@@ -33,6 +46,9 @@ const getAllVersions = async (req, res) => {
 // Get latest version
 const getLatestVersion = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const version = await appVersionService.getLatestVersion();
 
     if (!version) {
@@ -62,6 +78,9 @@ const getLatestVersion = async (req, res) => {
 // Upload new version
 const uploadVersion = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     if (!req.file) {
       return error(res, 'APK file is required', 400);
     }
@@ -108,6 +127,9 @@ const uploadVersion = async (req, res) => {
 // Download APK
 const downloadApk = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const { id } = req.params;
     const version = await appVersionService.getVersionById(id);
 
@@ -129,6 +151,9 @@ const downloadApk = async (req, res) => {
 // Download latest APK
 const downloadLatest = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const version = await appVersionService.getLatestVersion();
 
     if (!version) {
@@ -153,6 +178,9 @@ const downloadLatest = async (req, res) => {
 // Check for update
 const checkForUpdate = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const { versionCode } = req.query;
 
     if (!versionCode) {
@@ -170,6 +198,9 @@ const checkForUpdate = async (req, res) => {
 // Update version info
 const updateVersion = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const { id } = req.params;
     const { releaseNotes, isMandatory, isActive } = req.body;
 
@@ -189,6 +220,9 @@ const updateVersion = async (req, res) => {
 // Delete version
 const deleteVersion = async (req, res) => {
   try {
+    if (!appVersionService) {
+      return error(res, 'Service not available', 500);
+    }
     const { id } = req.params;
     const result = await appVersionService.deleteVersion(id);
 

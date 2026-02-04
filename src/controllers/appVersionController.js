@@ -1,4 +1,4 @@
-const { success, error } = require('../utils/response');
+const { successResponse, errorResponse } = require('../utils/response');
 const path = require('path');
 const fs = require('fs');
 
@@ -17,12 +17,12 @@ try {
 const getAllVersions = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const includeInactive = req.query.all === 'true';
     const versions = await appVersionService.getAllVersions(includeInactive);
 
-    return success(res, 'Versions retrieved successfully', {
+    return successResponse(res, {
       versions: versions.map(v => ({
         id: v.Id,
         versionCode: v.VersionCode,
@@ -37,9 +37,9 @@ const getAllVersions = async (req, res) => {
         downloadCount: v.DownloadCount,
         createdAt: v.CreatedAt
       }))
-    });
+    }, 'Versions retrieved successfully');
   } catch (err) {
-    return error(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
@@ -47,15 +47,15 @@ const getAllVersions = async (req, res) => {
 const getLatestVersion = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const version = await appVersionService.getLatestVersion();
 
     if (!version) {
-      return error(res, 'No version available', 404);
+      return errorResponse(res, 'No version available', 404);
     }
 
-    return success(res, 'Latest version retrieved', {
+    return successResponse(res, {
       version: {
         id: version.Id,
         versionCode: version.VersionCode,
@@ -69,9 +69,9 @@ const getLatestVersion = async (req, res) => {
         downloadCount: version.DownloadCount,
         createdAt: version.CreatedAt
       }
-    });
+    }, 'Latest version retrieved');
   } catch (err) {
-    return error(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
@@ -79,16 +79,16 @@ const getLatestVersion = async (req, res) => {
 const uploadVersion = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     if (!req.file) {
-      return error(res, 'APK file is required', 400);
+      return errorResponse(res, 'APK file is required', 400);
     }
 
     const { versionCode, versionName, releaseNotes, isMandatory } = req.body;
 
     if (!versionCode || !versionName) {
-      return error(res, 'Version code and version name are required', 400);
+      return errorResponse(res, 'Version code and version name are required', 400);
     }
 
     const version = await appVersionService.createVersion(
@@ -102,7 +102,7 @@ const uploadVersion = async (req, res) => {
       req.user?.SecurityId || null
     );
 
-    return success(res, 'Version uploaded successfully', {
+    return successResponse(res, {
       version: {
         id: version.Id,
         versionCode: version.VersionCode,
@@ -112,7 +112,7 @@ const uploadVersion = async (req, res) => {
         fileSize: version.FileSize,
         fileSizeFormatted: appVersionService.formatFileSize(version.FileSize)
       }
-    }, 201);
+    }, 'Version uploaded successfully', 201);
   } catch (err) {
     // Clean up uploaded file if error
     if (req.file && req.file.path) {
@@ -120,7 +120,7 @@ const uploadVersion = async (req, res) => {
         fs.unlinkSync(req.file.path);
       } catch (e) {}
     }
-    return error(res, err.message, 400);
+    return errorResponse(res, err.message, 400);
   }
 };
 
@@ -128,7 +128,7 @@ const uploadVersion = async (req, res) => {
 const downloadApk = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const { id } = req.params;
     const version = await appVersionService.getVersionById(id);
@@ -139,12 +139,12 @@ const downloadApk = async (req, res) => {
     const filePath = path.join(__dirname, '../..', version.FilePath);
 
     if (!fs.existsSync(filePath)) {
-      return error(res, 'File not found', 404);
+      return errorResponse(res, 'File not found', 404);
     }
 
     res.download(filePath, version.FileName);
   } catch (err) {
-    return error(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
@@ -152,12 +152,12 @@ const downloadApk = async (req, res) => {
 const downloadLatest = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const version = await appVersionService.getLatestVersion();
 
     if (!version) {
-      return error(res, 'No version available', 404);
+      return errorResponse(res, 'No version available', 404);
     }
 
     // Increment download count
@@ -166,12 +166,12 @@ const downloadLatest = async (req, res) => {
     const filePath = path.join(__dirname, '../..', version.FilePath);
 
     if (!fs.existsSync(filePath)) {
-      return error(res, 'File not found', 404);
+      return errorResponse(res, 'File not found', 404);
     }
 
     res.download(filePath, version.FileName);
   } catch (err) {
-    return error(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
@@ -179,19 +179,19 @@ const downloadLatest = async (req, res) => {
 const checkForUpdate = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const { versionCode } = req.query;
 
     if (!versionCode) {
-      return error(res, 'Current version code is required', 400);
+      return errorResponse(res, 'Current version code is required', 400);
     }
 
     const result = await appVersionService.checkForUpdate(parseInt(versionCode));
 
-    return success(res, 'Update check completed', result);
+    return successResponse(res, result, 'Update check completed');
   } catch (err) {
-    return error(res, err.message, 500);
+    return errorResponse(res, err.message, 500);
   }
 };
 
@@ -199,7 +199,7 @@ const checkForUpdate = async (req, res) => {
 const updateVersion = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const { id } = req.params;
     const { releaseNotes, isMandatory, isActive } = req.body;
@@ -211,9 +211,9 @@ const updateVersion = async (req, res) => {
 
     const version = await appVersionService.updateVersion(id, updates);
 
-    return success(res, 'Version updated successfully', { version });
+    return successResponse(res, { version }, 'Version updated successfully');
   } catch (err) {
-    return error(res, err.message, 400);
+    return errorResponse(res, err.message, 400);
   }
 };
 
@@ -221,14 +221,14 @@ const updateVersion = async (req, res) => {
 const deleteVersion = async (req, res) => {
   try {
     if (!appVersionService) {
-      return error(res, 'Service not available', 500);
+      return errorResponse(res, 'Service not available', 500);
     }
     const { id } = req.params;
     const result = await appVersionService.deleteVersion(id);
 
-    return success(res, result.message);
+    return successResponse(res, {}, result.message);
   } catch (err) {
-    return error(res, err.message, 400);
+    return errorResponse(res, err.message, 400);
   }
 };
 

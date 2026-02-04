@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CMO App - Download</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            padding: 40px 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .app-icon {
+            width: 100px;
+            height: 100px;
+            background: white;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .app-icon i {
+            font-size: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .latest-version {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+
+        .latest-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .version-info h2 {
+            font-size: 1.8rem;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .version-meta {
+            display: flex;
+            gap: 20px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .version-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            text-decoration: none;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .release-notes {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .release-notes h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .release-notes p {
+            color: #666;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .version-history {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+
+        .version-history h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .version-list {
+            list-style: none;
+        }
+
+        .version-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .version-item:last-child {
+            border-bottom: none;
+        }
+
+        .version-item-info h4 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .version-item-info .meta {
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .version-item-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-download {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: #5a6fd6;
+        }
+
+        .mandatory-badge {
+            background: #ff6b6b;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: white;
+        }
+
+        .loading i {
+            font-size: 3rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ff6b6b;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-item .label {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .no-versions {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .no-versions i {
+            font-size: 4rem;
+            color: #ddd;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .version-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .version-meta {
+                justify-content: center;
+            }
+
+            .stats {
+                justify-content: center;
+            }
+
+            .version-item {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="app-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <h1>CMO App</h1>
+            <p>Change Meter Owner - Mobile Application</p>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <i class="fas fa-spinner"></i>
+                <p>Loading versions...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api/app';
+
+        async function loadVersions() {
+            try {
+                const response = await fetch(`${API_BASE}/versions`);
+                const data = await response.json();
+
+                if (!data.success || !data.data.versions.length) {
+                    showNoVersions();
+                    return;
+                }
+
+                const versions = data.data.versions;
+                const latestVersion = versions[0];
+                const olderVersions = versions.slice(1);
+
+                renderContent(latestVersion, olderVersions);
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to load versions. Please try again later.');
+            }
+        }
+
+        function renderContent(latest, older) {
+            const content = document.getElementById('content');
+
+            let html = `
+                <div class="latest-version">
+                    <span class="latest-badge">
+                        <i class="fas fa-star"></i> Latest Version
+                    </span>
+                    <div class="version-header">
+                        <div class="version-info">
+                            <h2>Version ${latest.versionName}
+                                ${latest.isMandatory ? '<span class="mandatory-badge">MANDATORY UPDATE</span>' : ''}
+                            </h2>
+                            <div class="version-meta">
+                                <span><i class="fas fa-code-branch"></i> Build ${latest.versionCode}</span>
+                                <span><i class="fas fa-file-archive"></i> ${latest.fileSizeFormatted}</span>
+                                <span><i class="fas fa-calendar"></i> ${formatDate(latest.createdAt)}</span>
+                            </div>
+                            <div class="stats">
+                                <div class="stat-item">
+                                    <div class="value">${latest.downloadCount}</div>
+                                    <div class="label">Downloads</div>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="${API_BASE}/download/latest" class="download-btn">
+                            <i class="fas fa-download"></i>
+                            Download APK
+                        </a>
+                    </div>
+                    ${latest.releaseNotes ? `
+                        <div class="release-notes">
+                            <h3><i class="fas fa-clipboard-list"></i> What's New</h3>
+                            <p>${latest.releaseNotes}</p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            if (older.length > 0) {
+                html += `
+                    <div class="version-history">
+                        <h2><i class="fas fa-history"></i> Previous Versions</h2>
+                        <ul class="version-list">
+                            ${older.map(v => `
+                                <li class="version-item">
+                                    <div class="version-item-info">
+                                        <h4>Version ${v.versionName} (Build ${v.versionCode})
+                                            ${v.isMandatory ? '<span class="mandatory-badge">MANDATORY</span>' : ''}
+                                        </h4>
+                                        <div class="meta">
+                                            <span>${v.fileSizeFormatted}</span> &bull;
+                                            <span>${formatDate(v.createdAt)}</span> &bull;
+                                            <span>${v.downloadCount} downloads</span>
+                                        </div>
+                                    </div>
+                                    <div class="version-item-actions">
+                                        <a href="${API_BASE}/download/${v.id}" class="btn-small btn-download">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                    </div>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = html;
+        }
+
+        function showNoVersions() {
+            document.getElementById('content').innerHTML = `
+                <div class="latest-version">
+                    <div class="no-versions">
+                        <i class="fas fa-box-open"></i>
+                        <h3>No Versions Available</h3>
+                        <p>Please check back later for app updates.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showError(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        // Load versions on page load
+        loadVersions();
+    </script>
+</body>
+</html>

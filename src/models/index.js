@@ -5,6 +5,7 @@ const CMO = require('./CMO');
 const MeterInfo = require('./MeterInfo');
 const NOCS = require('./NOCS');
 const DCU = require('./DCU');
+const AppVersion = require('./AppVersion');
 
 // Define associations with AdminSecurity (primary authentication table)
 AdminSecurity.hasMany(CMO, {
@@ -42,5 +43,6 @@ module.exports = {
   MeterInfo,
   NOCS,
   DCU,
+  AppVersion,
   syncDatabase
 };

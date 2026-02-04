@@ -49,6 +49,14 @@ app.use(apiLimiter);
 // Static files (uploaded images)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Public static files (download page, etc.)
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Download page route
+app.get('/download', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/download.html'));
+});
+
 // API routes
 const apiPrefix = process.env.API_PREFIX || '/api';
 app.use(apiPrefix, routes);
@@ -65,6 +73,8 @@ app.get('/', (req, res) => {
       cmo: `${apiPrefix}/cmo`,
       customer: `${apiPrefix}/customer`,
       customers: `${apiPrefix}/customers`,
+      app: `${apiPrefix}/app`,
+      downloadPage: '/download',
       documentation: '/api-docs'
     }
   });

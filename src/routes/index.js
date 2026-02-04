@@ -8,6 +8,7 @@ const customerRoutes = require('./customer');
 const uploadRoutes = require('./upload');
 const mapRoutes = require('./map');
 const reportRoutes = require('./report');
+const appVersionRoutes = require('./appVersion');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -27,5 +28,6 @@ router.use('/customers', customerRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/map', mapRoutes);
 router.use('/reports', reportRoutes);
+router.use('/app', appVersionRoutes);
 
 module.exports = router;

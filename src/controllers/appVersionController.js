@@ -4,6 +4,18 @@ const path = require('path');
 const fs = require('fs');
 
 class AppVersionController {
+  constructor() {
+    // Bind all methods to ensure proper 'this' context
+    this.getAllVersions = this.getAllVersions.bind(this);
+    this.getLatestVersion = this.getLatestVersion.bind(this);
+    this.uploadVersion = this.uploadVersion.bind(this);
+    this.downloadApk = this.downloadApk.bind(this);
+    this.downloadLatest = this.downloadLatest.bind(this);
+    this.checkForUpdate = this.checkForUpdate.bind(this);
+    this.updateVersion = this.updateVersion.bind(this);
+    this.deleteVersion = this.deleteVersion.bind(this);
+  }
+
   // Get all versions
   async getAllVersions(req, res) {
     try {

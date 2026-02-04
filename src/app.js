@@ -9,6 +9,7 @@ require('dotenv').config();
 const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
+const { apiLimiter } = require('./middleware/rateLimiter');
 
 // Create Express app
 const app = express();
@@ -41,6 +42,9 @@ if (process.env.NODE_ENV === 'development') {
     }
   }));
 }
+
+// Global rate limiter
+app.use(apiLimiter);
 
 // Static files (uploaded images)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

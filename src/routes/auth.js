@@ -3,9 +3,10 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { validateLogin } = require('../utils/validators');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 // Public routes
-router.post('/login', validateLogin, authController.login);
+router.post('/login', authLimiter, validateLogin, authController.login);
 router.post('/refresh-token', authController.refreshToken);
 
 // Protected routes

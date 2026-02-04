@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { authenticate } = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 
 // Load controller with error handling
 let appVersionController;
@@ -63,8 +63,8 @@ router.get('/download/latest', safeHandler(appVersionController.downloadLatest, 
 router.get('/download/:id', safeHandler(appVersionController.downloadApk, 'downloadApk'));
 
 // Protected routes (auth required)
-router.post('/upload', authenticate, upload.single('apk'), safeHandler(appVersionController.uploadVersion, 'uploadVersion'));
-router.put('/:id', authenticate, safeHandler(appVersionController.updateVersion, 'updateVersion'));
-router.delete('/:id', authenticate, safeHandler(appVersionController.deleteVersion, 'deleteVersion'));
+router.post('/upload', auth, upload.single('apk'), safeHandler(appVersionController.uploadVersion, 'uploadVersion'));
+router.put('/:id', auth, safeHandler(appVersionController.updateVersion, 'updateVersion'));
+router.delete('/:id', auth, safeHandler(appVersionController.deleteVersion, 'deleteVersion'));
 
 module.exports = router;

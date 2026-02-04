@@ -245,11 +245,12 @@ class CMOService {
           status: existingRecord ? 'updated' : 'created'
         });
       } catch (error) {
-        console.error('Sync error for customer', cmoData.CustomerId, ':', error.message);
-        console.error('Full error:', error);
+        // Log error without full stack trace to reduce log size
+        console.error(`Sync error for customer ${cmoData.CustomerId}: ${error.message}`);
         results.failed.push({
           clientId: cmoData.LocalId,
           customerId: cmoData.CustomerId,
+          newMeterId: cmoData.NewMeterNoOCR,
           error: error.message
         });
       }

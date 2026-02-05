@@ -26,7 +26,8 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
       formAction: ["'self'"],
-      frameAncestors: ["'self'"]
+      frameAncestors: ["'self'"],
+      upgradeInsecureRequests: null
     }
   },
   crossOriginOpenerPolicy: false,

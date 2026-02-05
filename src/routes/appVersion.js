@@ -78,6 +78,17 @@ const extendTimeout = (req, res, next) => {
   req.setTimeout(600000); // 10 minutes for upload
   res.setTimeout(600000);
   console.log('[UPLOAD] Request started, timeout extended');
+
+  // Monitor connection for debugging
+  req.on('close', () => {
+    if (!res.writableEnded) {
+      console.log('[UPLOAD] Connection closed by client before response');
+    }
+  });
+  req.on('aborted', () => {
+    console.log('[UPLOAD] Request aborted');
+  });
+
   next();
 };
 

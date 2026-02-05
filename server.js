@@ -45,6 +45,12 @@ const startServer = async () => {
     server.timeout = 600000;
     server.keepAliveTimeout = 600000;
     server.headersTimeout = 610000;
+
+    // Enable TCP keep-alive to prevent connection drops during long uploads
+    server.on('connection', (socket) => {
+      socket.setKeepAlive(true, 30000); // Send keep-alive every 30 seconds
+      socket.setTimeout(600000); // 10 minute socket timeout
+    });
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);

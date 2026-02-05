@@ -20,7 +20,7 @@ const startServer = async () => {
     // await syncDatabase(false);
 
     // Start server
-    app.listen(PORT, HOST, () => {
+    const server = app.listen(PORT, HOST, () => {
       logger.info(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -38,8 +38,13 @@ const startServer = async () => {
       `);
 
       console.log(`✅ Server is ready to accept connections`);
-      console.log(`📡 Press Ctrl+C to stop the server\n`);
+      console.log(`📊 Press Ctrl+C to stop the server\n`);
     });
+
+    // Set server timeouts for large file uploads (10 minutes)
+    server.timeout = 600000;
+    server.keepAliveTimeout = 600000;
+    server.headersTimeout = 610000;
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);

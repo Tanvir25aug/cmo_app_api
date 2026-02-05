@@ -228,24 +228,21 @@ router.post('/upload/complete', auth, async (req, res) => {
     const stats = fs.statSync(finalPath);
 
     // Create database record
-    if (!appVersionController || !appVersionService) {
-      // Load service directly if controller not available
-      const AppVersion = require('../models/AppVersion');
-      await AppVersion.create({
-        VersionCode: parseInt(metadata.versionCode),
-        VersionName: metadata.versionName,
-        FileName: finalFileName,
-        FilePath: `/uploads/apk/${finalFileName}`,
-        FileSize: stats.size,
-        ReleaseNotes: metadata.releaseNotes || '',
-        IsMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true ? 1 : 0,
-        IsActive: 1,
-        DownloadCount: 0,
-        UploadedBy: req.user?.SecurityId || null,
-        CreatedAt: new Date(),
-        UpdatedAt: new Date()
-      });
-    }
+    const AppVersion = require('../models/AppVersion');
+    await AppVersion.create({
+      VersionCode: parseInt(metadata.versionCode),
+      VersionName: metadata.versionName,
+      FileName: finalFileName,
+      FilePath: `/uploads/apk/${finalFileName}`,
+      FileSize: stats.size,
+      ReleaseNotes: metadata.releaseNotes || '',
+      IsMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true ? 1 : 0,
+      IsActive: 1,
+      DownloadCount: 0,
+      UploadedBy: req.user?.SecurityId || null,
+      CreatedAt: new Date(),
+      UpdatedAt: new Date()
+    });
 
     // Cleanup chunks
     fs.rmSync(uploadDir, { recursive: true, force: true });

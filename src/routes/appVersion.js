@@ -2,7 +2,18 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { auth } = require('../middleware/auth');
+
+// Ensure upload directories exist
+const tempUploadDir = path.join(__dirname, '../../uploads/temp');
+const apkUploadDir = path.join(__dirname, '../../uploads/apk');
+if (!fs.existsSync(tempUploadDir)) {
+  fs.mkdirSync(tempUploadDir, { recursive: true });
+}
+if (!fs.existsSync(apkUploadDir)) {
+  fs.mkdirSync(apkUploadDir, { recursive: true });
+}
 
 // Load controller with error handling
 let appVersionController;

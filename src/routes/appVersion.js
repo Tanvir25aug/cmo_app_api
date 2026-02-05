@@ -73,8 +73,28 @@ router.get('/check-update', safeHandler(appVersionController.checkForUpdate, 'ch
 router.get('/download/latest', safeHandler(appVersionController.downloadLatest, 'downloadLatest'));
 router.get('/download/:id', safeHandler(appVersionController.downloadApk, 'downloadApk'));
 
+// Middleware to extend timeout for uploads
+const extendTimeout = (req, res, next) => {
+  req.setTimeout(600000); // 10 minutes for upload
+  res.setTimeout(600000);
+  next();
+};
+
 // Protected routes (auth required)
-router.post('/upload', auth, upload.single('apk'), safeHandler(appVersionController.uploadVersion, 'uploadVersion'));
+router.post('/upload', extendTimeout, auth, (req, res, next) => {
+  upload.single('apk')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ success: false, message: 'File too large. Maximum size is 200MB' });
+        }
+        return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+      }
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    next();
+  });
+}, safeHandler(appVersionController.uploadVersion, 'uploadVersion'));
 router.put('/:id', auth, safeHandler(appVersionController.updateVersion, 'updateVersion'));
 router.delete('/:id', auth, safeHandler(appVersionController.deleteVersion, 'deleteVersion'));
 

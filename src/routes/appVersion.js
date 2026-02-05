@@ -228,21 +228,29 @@ router.post('/upload/complete', auth, async (req, res) => {
     const stats = fs.statSync(finalPath);
 
     // Create database record
-    const AppVersion = require('../models/AppVersion');
-    await AppVersion.create({
-      VersionCode: parseInt(metadata.versionCode),
-      VersionName: metadata.versionName,
-      FileName: finalFileName,
-      FilePath: `/uploads/apk/${finalFileName}`,
-      FileSize: stats.size,
-      ReleaseNotes: metadata.releaseNotes || '',
-      IsMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true ? 1 : 0,
-      IsActive: 1,
-      DownloadCount: 0,
-      UploadedBy: req.user?.SecurityId || null,
-      CreatedAt: new Date(),
-      UpdatedAt: new Date()
-    });
+    console.log(`[CHUNKED] Creating database record for version ${metadata.versionCode} (${metadata.versionName})`);
+    try {
+      const AppVersion = require('../models/AppVersion');
+      const newVersion = await AppVersion.create({
+        VersionCode: parseInt(metadata.versionCode),
+        VersionName: metadata.versionName,
+        FileName: finalFileName,
+        FilePath: `/uploads/apk/${finalFileName}`,
+        FileSize: stats.size,
+        ReleaseNotes: metadata.releaseNotes || '',
+        IsMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true ? 1 : 0,
+        IsActive: 1,
+        DownloadCount: 0,
+        UploadedBy: req.user?.SecurityId || null,
+        CreatedAt: new Date(),
+        UpdatedAt: new Date()
+      });
+      console.log(`[CHUNKED] Database record created with ID: ${newVersion.Id}`);
+    } catch (dbError) {
+      console.error(`[CHUNKED] Database error: ${dbError.message}`);
+      console.error(`[CHUNKED] Database error stack: ${dbError.stack}`);
+      throw dbError;
+    }
 
     // Cleanup chunks
     fs.rmSync(uploadDir, { recursive: true, force: true });

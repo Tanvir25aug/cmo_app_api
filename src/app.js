@@ -14,8 +14,23 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 // Create Express app
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware with custom CSP for static pages
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"]
+    }
+  },
+  crossOriginOpenerPolicy: false,
+  originAgentCluster: false
+}));
 
 // CORS configuration
 const corsOptions = {

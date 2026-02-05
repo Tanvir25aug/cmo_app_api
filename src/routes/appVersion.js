@@ -8,11 +8,15 @@ const { auth } = require('../middleware/auth');
 // Ensure upload directories exist
 const tempUploadDir = path.join(__dirname, '../../uploads/temp');
 const apkUploadDir = path.join(__dirname, '../../uploads/apk');
+const chunksDir = path.join(__dirname, '../../uploads/chunks');
 if (!fs.existsSync(tempUploadDir)) {
   fs.mkdirSync(tempUploadDir, { recursive: true });
 }
 if (!fs.existsSync(apkUploadDir)) {
   fs.mkdirSync(apkUploadDir, { recursive: true });
+}
+if (!fs.existsSync(chunksDir)) {
+  fs.mkdirSync(chunksDir, { recursive: true });
 }
 
 // Load controller with error handling
@@ -91,6 +95,191 @@ const extendTimeout = (req, res, next) => {
 
   next();
 };
+
+// ============ CHUNKED UPLOAD ROUTES ============
+
+// Configure multer for chunk uploads (smaller chunks)
+const chunkStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadId = req.body.uploadId || req.query.uploadId;
+    const chunkDir = path.join(chunksDir, uploadId);
+    if (!fs.existsSync(chunkDir)) {
+      fs.mkdirSync(chunkDir, { recursive: true });
+    }
+    cb(null, chunkDir);
+  },
+  filename: function (req, file, cb) {
+    const chunkIndex = req.body.chunkIndex || req.query.chunkIndex || '0';
+    cb(null, `chunk_${chunkIndex}`);
+  }
+});
+
+const chunkUpload = multer({
+  storage: chunkStorage,
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB per chunk
+});
+
+// Initialize chunked upload
+router.post('/upload/init', auth, (req, res) => {
+  try {
+    const { fileName, fileSize, totalChunks, versionCode, versionName, releaseNotes, isMandatory } = req.body;
+
+    if (!fileName || !fileSize || !totalChunks || !versionCode || !versionName) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const uploadDir = path.join(chunksDir, uploadId);
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    // Store metadata
+    const metadata = { fileName, fileSize, totalChunks, versionCode, versionName, releaseNotes, isMandatory, uploadedChunks: [] };
+    fs.writeFileSync(path.join(uploadDir, 'metadata.json'), JSON.stringify(metadata));
+
+    console.log(`[CHUNKED] Upload initialized: ${uploadId}, ${totalChunks} chunks expected`);
+    res.json({ success: true, message: 'Upload initialized', data: { uploadId, totalChunks } });
+  } catch (err) {
+    console.error('[CHUNKED] Init error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Upload a chunk
+router.post('/upload/chunk', auth, chunkUpload.single('chunk'), (req, res) => {
+  try {
+    const { uploadId, chunkIndex } = req.body;
+
+    if (!uploadId || chunkIndex === undefined) {
+      return res.status(400).json({ success: false, message: 'Missing uploadId or chunkIndex' });
+    }
+
+    const uploadDir = path.join(chunksDir, uploadId);
+    const metadataPath = path.join(uploadDir, 'metadata.json');
+
+    if (!fs.existsSync(metadataPath)) {
+      return res.status(400).json({ success: false, message: 'Invalid upload ID' });
+    }
+
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    if (!metadata.uploadedChunks.includes(parseInt(chunkIndex))) {
+      metadata.uploadedChunks.push(parseInt(chunkIndex));
+    }
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata));
+
+    console.log(`[CHUNKED] Chunk ${chunkIndex}/${metadata.totalChunks - 1} received for ${uploadId}`);
+    res.json({
+      success: true,
+      message: 'Chunk uploaded',
+      data: {
+        chunkIndex: parseInt(chunkIndex),
+        uploadedChunks: metadata.uploadedChunks.length,
+        totalChunks: metadata.totalChunks
+      }
+    });
+  } catch (err) {
+    console.error('[CHUNKED] Chunk error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Complete chunked upload - assemble chunks
+router.post('/upload/complete', auth, async (req, res) => {
+  try {
+    const { uploadId } = req.body;
+
+    if (!uploadId) {
+      return res.status(400).json({ success: false, message: 'Missing uploadId' });
+    }
+
+    const uploadDir = path.join(chunksDir, uploadId);
+    const metadataPath = path.join(uploadDir, 'metadata.json');
+
+    if (!fs.existsSync(metadataPath)) {
+      return res.status(400).json({ success: false, message: 'Invalid upload ID' });
+    }
+
+    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+
+    // Check all chunks uploaded
+    if (metadata.uploadedChunks.length !== metadata.totalChunks) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing chunks. Expected ${metadata.totalChunks}, got ${metadata.uploadedChunks.length}`
+      });
+    }
+
+    console.log(`[CHUNKED] Assembling ${metadata.totalChunks} chunks for ${uploadId}`);
+
+    // Assemble chunks
+    const finalFileName = `cmo_app_v${metadata.versionName}_${Date.now()}.apk`;
+    const finalPath = path.join(apkUploadDir, finalFileName);
+    const writeStream = fs.createWriteStream(finalPath);
+
+    for (let i = 0; i < metadata.totalChunks; i++) {
+      const chunkPath = path.join(uploadDir, `chunk_${i}`);
+      const chunkData = fs.readFileSync(chunkPath);
+      writeStream.write(chunkData);
+    }
+    writeStream.end();
+
+    // Wait for write to complete
+    await new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+
+    // Get final file size
+    const stats = fs.statSync(finalPath);
+
+    // Create database record
+    if (!appVersionController || !appVersionService) {
+      // Load service directly if controller not available
+      const AppVersion = require('../models/AppVersion');
+      await AppVersion.create({
+        VersionCode: parseInt(metadata.versionCode),
+        VersionName: metadata.versionName,
+        FileName: finalFileName,
+        FilePath: `/uploads/apk/${finalFileName}`,
+        FileSize: stats.size,
+        ReleaseNotes: metadata.releaseNotes || '',
+        IsMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true ? 1 : 0,
+        IsActive: 1,
+        DownloadCount: 0,
+        UploadedBy: req.user?.SecurityId || null,
+        CreatedAt: new Date(),
+        UpdatedAt: new Date()
+      });
+    }
+
+    // Cleanup chunks
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+
+    console.log(`[CHUNKED] Upload complete: ${finalFileName} (${stats.size} bytes)`);
+    res.json({
+      success: true,
+      message: 'Upload complete',
+      data: {
+        fileName: finalFileName,
+        fileSize: stats.size,
+        versionCode: metadata.versionCode,
+        versionName: metadata.versionName
+      }
+    });
+  } catch (err) {
+    console.error('[CHUNKED] Complete error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Load appVersionService for chunked upload
+let appVersionService;
+try {
+  appVersionService = require('../services/appVersionService');
+} catch (err) {
+  console.error('Failed to load appVersionService in routes:', err.message);
+}
+
+// ============ ORIGINAL UPLOAD ROUTE (kept for backward compatibility) ============
 
 // Protected routes (auth required)
 router.post('/upload', extendTimeout, auth, (req, res, next) => {

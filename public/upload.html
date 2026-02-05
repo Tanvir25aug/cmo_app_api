@@ -578,6 +578,9 @@
             }
         }
 
+        // Chunked upload configuration
+        const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+
         document.getElementById('uploadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -597,13 +600,7 @@
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('apk', fileInput.files[0]);
-            formData.append('versionCode', versionCode);
-            formData.append('versionName', versionName);
-            formData.append('releaseNotes', releaseNotes);
-            formData.append('isMandatory', isMandatory ? 'true' : 'false');
-
+            const file = fileInput.files[0];
             const uploadBtn = document.getElementById('uploadBtn');
             const progressContainer = document.getElementById('progressContainer');
             const progressFill = document.getElementById('progressFill');
@@ -613,41 +610,89 @@
             progressContainer.classList.add('show');
 
             try {
-                const xhr = new XMLHttpRequest();
+                // Calculate chunks
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                progressText.textContent = `Initializing upload (${totalChunks} chunks)...`;
 
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        progressFill.style.width = percent + '%';
-                        progressText.textContent = `Uploading... ${percent}%`;
+                // Step 1: Initialize upload
+                const initResponse = await fetch(`${API_BASE}/app/upload/init`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        fileSize: file.size,
+                        totalChunks: totalChunks,
+                        versionCode: versionCode,
+                        versionName: versionName,
+                        releaseNotes: releaseNotes,
+                        isMandatory: isMandatory
+                    })
+                });
+
+                const initData = await initResponse.json();
+                if (!initData.success) {
+                    throw new Error(initData.message || 'Failed to initialize upload');
+                }
+
+                const uploadId = initData.data.uploadId;
+                console.log(`Upload initialized: ${uploadId}`);
+
+                // Step 2: Upload chunks
+                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                    const start = chunkIndex * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const chunk = file.slice(start, end);
+
+                    const chunkFormData = new FormData();
+                    chunkFormData.append('chunk', chunk, `chunk_${chunkIndex}`);
+                    chunkFormData.append('uploadId', uploadId);
+                    chunkFormData.append('chunkIndex', chunkIndex);
+
+                    const chunkResponse = await fetch(`${API_BASE}/app/upload/chunk`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: chunkFormData
+                    });
+
+                    const chunkData = await chunkResponse.json();
+                    if (!chunkData.success) {
+                        throw new Error(chunkData.message || `Failed to upload chunk ${chunkIndex}`);
                     }
+
+                    // Update progress
+                    const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+                    progressFill.style.width = percent + '%';
+                    progressText.textContent = `Uploading chunk ${chunkIndex + 1}/${totalChunks} (${percent}%)`;
+                }
+
+                // Step 3: Complete upload
+                progressText.textContent = 'Finalizing upload...';
+                const completeResponse = await fetch(`${API_BASE}/app/upload/complete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ uploadId: uploadId })
                 });
 
-                xhr.addEventListener('load', () => {
-                    const data = JSON.parse(xhr.responseText);
-                    if (xhr.status === 201 && data.success) {
-                        showAlert('APK uploaded successfully!', 'success');
-                        resetForm();
-                    } else {
-                        showAlert(data.message || 'Upload failed', 'error');
-                    }
-                    uploadBtn.disabled = false;
-                    progressContainer.classList.remove('show');
-                });
+                const completeData = await completeResponse.json();
+                if (!completeData.success) {
+                    throw new Error(completeData.message || 'Failed to complete upload');
+                }
 
-                xhr.addEventListener('error', () => {
-                    showAlert('Upload failed. Please try again.', 'error');
-                    uploadBtn.disabled = false;
-                    progressContainer.classList.remove('show');
-                });
-
-                xhr.open('POST', `${API_BASE}/app/upload`);
-                xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-                xhr.send(formData);
+                showAlert('APK uploaded successfully!', 'success');
+                resetForm();
 
             } catch (error) {
                 console.error('Upload error:', error);
-                showAlert('Upload failed. Please try again.', 'error');
+                showAlert(error.message || 'Upload failed. Please try again.', 'error');
+            } finally {
                 uploadBtn.disabled = false;
                 progressContainer.classList.remove('show');
             }

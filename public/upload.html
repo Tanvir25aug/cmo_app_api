@@ -648,10 +648,10 @@
 
                     const chunkFormData = new FormData();
                     chunkFormData.append('chunk', chunk, `chunk_${chunkIndex}`);
-                    chunkFormData.append('uploadId', uploadId);
-                    chunkFormData.append('chunkIndex', chunkIndex);
 
-                    const chunkResponse = await fetch(`${API_BASE}/app/upload/chunk`, {
+                    // Send uploadId and chunkIndex as URL query params (available before body parsing)
+                    const chunkUrl = `${API_BASE}/app/upload/chunk?uploadId=${encodeURIComponent(uploadId)}&chunkIndex=${chunkIndex}`;
+                    const chunkResponse = await fetch(chunkUrl, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${authToken}`

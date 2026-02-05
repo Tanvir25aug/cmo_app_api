@@ -98,24 +98,9 @@ const extendTimeout = (req, res, next) => {
 
 // ============ CHUNKED UPLOAD ROUTES ============
 
-// Configure multer for chunk uploads (smaller chunks)
-const chunkStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadId = req.body.uploadId || req.query.uploadId;
-    const chunkDir = path.join(chunksDir, uploadId);
-    if (!fs.existsSync(chunkDir)) {
-      fs.mkdirSync(chunkDir, { recursive: true });
-    }
-    cb(null, chunkDir);
-  },
-  filename: function (req, file, cb) {
-    const chunkIndex = req.body.chunkIndex || req.query.chunkIndex || '0';
-    cb(null, `chunk_${chunkIndex}`);
-  }
-});
-
+// Use memory storage for chunks, then save manually (uploadId available in query params)
 const chunkUpload = multer({
-  storage: chunkStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 } // 2MB per chunk
 });
 
@@ -144,10 +129,12 @@ router.post('/upload/init', auth, (req, res) => {
   }
 });
 
-// Upload a chunk
+// Upload a chunk - use query params since they're available before multer parses body
 router.post('/upload/chunk', auth, chunkUpload.single('chunk'), (req, res) => {
   try {
-    const { uploadId, chunkIndex } = req.body;
+    // Get from query params (available before body parsing)
+    const uploadId = req.query.uploadId || req.body.uploadId;
+    const chunkIndex = req.query.chunkIndex !== undefined ? req.query.chunkIndex : req.body.chunkIndex;
 
     if (!uploadId || chunkIndex === undefined) {
       return res.status(400).json({ success: false, message: 'Missing uploadId or chunkIndex' });
@@ -160,6 +147,15 @@ router.post('/upload/chunk', auth, chunkUpload.single('chunk'), (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid upload ID' });
     }
 
+    // Save chunk from memory to disk
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, message: 'No chunk data received' });
+    }
+
+    const chunkPath = path.join(uploadDir, `chunk_${chunkIndex}`);
+    fs.writeFileSync(chunkPath, req.file.buffer);
+
+    // Update metadata
     const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     if (!metadata.uploadedChunks.includes(parseInt(chunkIndex))) {
       metadata.uploadedChunks.push(parseInt(chunkIndex));

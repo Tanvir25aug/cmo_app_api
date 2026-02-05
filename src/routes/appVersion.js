@@ -77,13 +77,16 @@ router.get('/download/:id', safeHandler(appVersionController.downloadApk, 'downl
 const extendTimeout = (req, res, next) => {
   req.setTimeout(600000); // 10 minutes for upload
   res.setTimeout(600000);
+  console.log('[UPLOAD] Request started, timeout extended');
   next();
 };
 
 // Protected routes (auth required)
 router.post('/upload', extendTimeout, auth, (req, res, next) => {
+  console.log('[UPLOAD] Auth passed, starting file upload...');
   upload.single('apk')(req, res, (err) => {
     if (err) {
+      console.error('[UPLOAD] Multer error:', err.message);
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ success: false, message: 'File too large. Maximum size is 200MB' });
@@ -92,6 +95,7 @@ router.post('/upload', extendTimeout, auth, (req, res, next) => {
       }
       return res.status(400).json({ success: false, message: err.message });
     }
+    console.log('[UPLOAD] File received:', req.file ? req.file.originalname : 'No file');
     next();
   });
 }, safeHandler(appVersionController.uploadVersion, 'uploadVersion'));

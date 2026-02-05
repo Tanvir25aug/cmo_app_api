@@ -491,8 +491,8 @@
 
                 const data = await response.json();
 
-                if (data.success && data.data && data.data.token) {
-                    authToken = data.data.token;
+                if (data.success && data.data && data.data.accessToken) {
+                    authToken = data.data.accessToken;
                     localStorage.setItem('authToken', authToken);
                     showAlert('Login successful!', 'success');
                     showLoggedIn();

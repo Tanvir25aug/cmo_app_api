@@ -127,21 +127,40 @@ const checkForUpdate = async (currentVersionCode) => {
   const latestVersion = await getLatestVersion();
 
   if (!latestVersion) {
-    return { updateAvailable: false };
+    return { hasUpdate: false, updateAvailable: false };
   }
 
-  const updateAvailable = latestVersion.VersionCode > currentVersionCode;
+  const hasUpdate = latestVersion.VersionCode > currentVersionCode;
 
   return {
-    updateAvailable,
+    hasUpdate,
+    updateAvailable: hasUpdate, // backward compatibility
     currentVersion: currentVersionCode,
-    latestVersion: updateAvailable ? {
+    latestVersion: hasUpdate ? {
+      id: latestVersion.Id,
+      Id: latestVersion.Id,
       versionCode: latestVersion.VersionCode,
+      VersionCode: latestVersion.VersionCode,
       versionName: latestVersion.VersionName,
+      VersionName: latestVersion.VersionName,
+      fileName: latestVersion.FileName,
+      FileName: latestVersion.FileName,
+      filePath: latestVersion.FilePath,
+      FilePath: latestVersion.FilePath,
+      fileSize: latestVersion.FileSize,
+      FileSize: latestVersion.FileSize,
       releaseNotes: latestVersion.ReleaseNotes,
+      ReleaseNotes: latestVersion.ReleaseNotes,
       isMandatory: latestVersion.IsMandatory === 1,
-      downloadUrl: latestVersion.FilePath,
-      fileSize: latestVersion.FileSize
+      IsMandatory: latestVersion.IsMandatory,
+      isActive: latestVersion.IsActive === 1,
+      IsActive: latestVersion.IsActive,
+      downloadCount: latestVersion.DownloadCount,
+      DownloadCount: latestVersion.DownloadCount,
+      createdAt: latestVersion.CreatedAt,
+      CreatedAt: latestVersion.CreatedAt,
+      updatedAt: latestVersion.UpdatedAt,
+      UpdatedAt: latestVersion.UpdatedAt
     } : null
   };
 };

@@ -13,6 +13,7 @@ router.use(auth);
 // CMS Dashboard routes (must be before /:id)
 router.get('/cms-list', cmsDashboardController.getAll);
 router.get('/cms-statistics', cmsDashboardController.getStatistics);
+router.post('/check-mdm-entry', cmsDashboardController.checkMDMEntry);
 
 // Get routes
 router.get('/', cmoController.getAll);

@@ -112,7 +112,8 @@ class CMSDashboardController {
       const customerIds = [...new Set(
         uncheckedRecords
           .map(r => r.CustomerId)
-          .filter(id => id && id.trim() !== '')
+          .filter(id => id != null && String(id).trim() !== '')
+          .map(id => String(id).trim())
       )];
 
       if (customerIds.length === 0) {
@@ -152,7 +153,7 @@ class CMSDashboardController {
       let updatedCount = 0;
       if (foundCustomerIds.size > 0) {
         const idsToUpdate = uncheckedRecords
-          .filter(r => r.CustomerId && foundCustomerIds.has(r.CustomerId))
+          .filter(r => r.CustomerId != null && foundCustomerIds.has(String(r.CustomerId).trim()))
           .map(r => r.Id);
 
         if (idsToUpdate.length > 0) {

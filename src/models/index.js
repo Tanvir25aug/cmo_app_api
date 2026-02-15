@@ -20,6 +20,13 @@ CMO.belongsTo(AdminSecurity, {
   as: 'user'
 });
 
+// MeterInfo -> AdminSecurity (creator association for CMS dashboard)
+MeterInfo.belongsTo(AdminSecurity, {
+  foreignKey: 'CreateBy',
+  targetKey: 'SecurityId',
+  as: 'creator'
+});
+
 // Sync database (create tables if not exist)
 const syncDatabase = async (force = false) => {
   try {

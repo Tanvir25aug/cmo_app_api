@@ -2,12 +2,17 @@ const express = require('express');
 const router = express.Router();
 const cmoController = require('../controllers/cmoController');
 const bulkCmoController = require('../controllers/bulkCmoController');
+const cmsDashboardController = require('../controllers/cmsDashboardController');
 const { auth } = require('../middleware/auth');
 const { upload } = require('../config/multer');
 const { validateCMO } = require('../utils/validators');
 
 // All routes require authentication
 router.use(auth);
+
+// CMS Dashboard routes (must be before /:id)
+router.get('/cms-list', cmsDashboardController.getAll);
+router.get('/cms-statistics', cmsDashboardController.getStatistics);
 
 // Get routes
 router.get('/', cmoController.getAll);

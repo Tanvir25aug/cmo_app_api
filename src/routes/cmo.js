@@ -14,6 +14,8 @@ router.use(auth);
 router.get('/cms-list', cmsDashboardController.getAll);
 router.get('/cms-statistics', cmsDashboardController.getStatistics);
 router.post('/check-mdm-entry', cmsDashboardController.checkMDMEntry);
+router.get('/unchecked-mdm', cmsDashboardController.getUncheckedMDM);
+router.post('/bulk-update-mdm', cmsDashboardController.bulkUpdateMDM);
 
 // Get routes
 router.get('/', cmoController.getAll);

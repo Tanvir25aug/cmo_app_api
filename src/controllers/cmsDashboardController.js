@@ -184,6 +184,65 @@ class CMSDashboardController {
   }
 
   /**
+   * GET /api/cmo/unchecked-mdm
+   * Returns all active MeterInfo records where IsMDMEntry is 0 or null
+   * Only returns Id, CustomerId, NewMeterNoOCR for lightweight transfer
+   */
+  async getUncheckedMDM(req, res) {
+    try {
+      const records = await MeterInfo.findAll({
+        where: {
+          IsActive: 1,
+          [Op.or]: [
+            { IsMDMEntry: 0 },
+            { IsMDMEntry: null }
+          ]
+        },
+        attributes: ['Id', 'CustomerId', 'NewMeterNoOCR']
+      });
+
+      return successResponse(res, records, `Found ${records.length} unchecked MDM records`);
+    } catch (error) {
+      logger.error(`getUncheckedMDM error: ${error.message}`);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * POST /api/cmo/bulk-update-mdm
+   * Accepts { ids: [1,2,3...] } and sets IsMDMEntry = 1 for those IDs
+   * Processes in chunks of 500 to avoid query size limits
+   */
+  async bulkUpdateMDM(req, res) {
+    try {
+      const { ids } = req.body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return errorResponse(res, 'ids array is required and must not be empty', 400);
+      }
+
+      let updatedCount = 0;
+      const chunkSize = 500;
+
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const [affectedCount] = await MeterInfo.update(
+          { IsMDMEntry: 1 },
+          { where: { Id: { [Op.in]: chunk } } }
+        );
+        updatedCount += affectedCount;
+      }
+
+      logger.info(`bulkUpdateMDM: updated ${updatedCount} of ${ids.length} requested records`);
+
+      return successResponse(res, { updated: updatedCount }, `Updated ${updatedCount} records`);
+    } catch (error) {
+      logger.error(`bulkUpdateMDM error: ${error.message}`);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
    * GET /api/cmo/cms-statistics
    * Get statistics from MeterInfo_test for CMS dashboard
    */

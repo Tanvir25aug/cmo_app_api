@@ -12,6 +12,7 @@ router.use(auth);
 
 // CMS Dashboard routes (must be before /:id)
 router.get('/cms-list', cmsDashboardController.getAll);
+router.get('/cms-export', cmsDashboardController.getExportData);
 router.get('/cms-statistics', cmsDashboardController.getStatistics);
 router.post('/check-mdm-entry', cmsDashboardController.checkMDMEntry);
 router.get('/unchecked-mdm', cmsDashboardController.getUncheckedMDM);

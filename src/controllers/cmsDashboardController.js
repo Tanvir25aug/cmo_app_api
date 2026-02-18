@@ -65,7 +65,47 @@ class CMSDashboardController {
         }]
       });
 
-      return paginatedResponse(res, rows, {
+      // Enrich rows with Customer data from MSSQL
+      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+      const plainRows = rows.map(r => r.get({ plain: true }));
+      const customerIds = [...new Set(
+        plainRows.map(r => r.CustomerId).filter(id => id != null && String(id).trim() !== '')
+      )];
+
+      let customerMap = {};
+      if (customerIds.length > 0) {
+        const chunkSize = 500;
+        for (let i = 0; i < customerIds.length; i += chunkSize) {
+          const chunk = customerIds.slice(i, i + chunkSize);
+          const placeholders = chunk.map((_, idx) => `:id${idx}`).join(',');
+          const replacements = {};
+          chunk.forEach((id, idx) => { replacements[`id${idx}`] = id; });
+
+          const results = await sequelize.query(`
+            SELECT [OLD_CONSUMER_ID], [CUSTOMER_NAME], [ADDRESS], [MOBILE_NO],
+                   [CHANGED_MOBILE_NO], [SECONDARY_MOBILE_NO], [NOCS]
+            FROM [${DB_NAME}].[dbo].[Customer]
+            WHERE [OLD_CONSUMER_ID] IN (${placeholders})
+          `, { replacements, type: sequelize.QueryTypes.SELECT });
+
+          results.forEach(c => { customerMap[c.OLD_CONSUMER_ID] = c; });
+        }
+      }
+
+      const enrichedRows = plainRows.map(row => {
+        const cust = customerMap[row.CustomerId] || {};
+        return {
+          ...row,
+          CustomerName: cust.CUSTOMER_NAME || null,
+          Address: cust.ADDRESS || null,
+          MobileNo: cust.MOBILE_NO || null,
+          ChangedMobileNo: cust.CHANGED_MOBILE_NO || null,
+          SecondaryMobileNo: cust.SECONDARY_MOBILE_NO || null,
+          NOCS: cust.NOCS || null
+        };
+      });
+
+      return paginatedResponse(res, enrichedRows, {
         total: count,
         page: parseInt(page),
         limit: parseInt(limit),
@@ -238,6 +278,53 @@ class CMSDashboardController {
       return successResponse(res, { updated: updatedCount }, `Updated ${updatedCount} records`);
     } catch (error) {
       logger.error(`bulkUpdateMDM error: ${error.message}`);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * GET /api/cmo/cms-export
+   * Export all active MeterInfo records joined with Customer data
+   * Supports optional search and isApproved query params
+   */
+  async getExportData(req, res) {
+    try {
+      const { search, isApproved } = req.query;
+      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+
+      let whereClauses = ['m.IsActive = 1'];
+      const replacements = {};
+
+      if (isApproved !== undefined && isApproved !== '') {
+        whereClauses.push('m.IsApproved = :isApproved');
+        replacements.isApproved = parseInt(isApproved);
+      }
+
+      if (search) {
+        whereClauses.push(`(m.CustomerId LIKE :search OR m.OldConsumerId LIKE :search OR m.NewMeterNoOCR LIKE :search OR m.OldMeterNoOCR LIKE :search OR m.MeterInstalledBy LIKE :search)`);
+        replacements.search = `%${search}%`;
+      }
+
+      const whereSQL = whereClauses.join(' AND ');
+
+      const query = `
+        SELECT m.CustomerId, c.CUSTOMER_NAME, c.ADDRESS, c.MOBILE_NO,
+               c.CHANGED_MOBILE_NO, c.SECONDARY_MOBILE_NO, c.NOCS,
+               m.InstallDate, m.NewMeterNoOCR, m.Latitude, m.Longitude
+        FROM [${DB_NAME}].[dbo].[MeterInfo_test] m
+        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c ON m.CustomerId = c.OLD_CONSUMER_ID
+        WHERE ${whereSQL}
+        ORDER BY m.CreateDate DESC
+      `;
+
+      const results = await sequelize.query(query, {
+        replacements,
+        type: sequelize.QueryTypes.SELECT
+      });
+
+      return successResponse(res, results, `Export data retrieved: ${results.length} records`);
+    } catch (error) {
+      logger.error(`CMS Dashboard getExportData error: ${error.message}`);
       return errorResponse(res, error.message, 500);
     }
   }

@@ -69,7 +69,7 @@ class CMSDashboardController {
       const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
       const plainRows = rows.map(r => r.get({ plain: true }));
       const customerIds = [...new Set(
-        plainRows.map(r => r.CustomerId).filter(id => id != null && String(id).trim() !== '')
+        plainRows.map(r => r.CustomerId).filter(id => id != null && String(id).trim() !== '').map(id => String(id).trim())
       )];
 
       let customerMap = {};
@@ -82,18 +82,20 @@ class CMSDashboardController {
           chunk.forEach((id, idx) => { replacements[`id${idx}`] = id; });
 
           const results = await sequelize.query(`
-            SELECT [OLD_CONSUMER_ID], [CUSTOMER_NAME], [ADDRESS], [MOBILE_NO],
+            SELECT CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) AS OLD_CONSUMER_ID,
+                   [CUSTOMER_NAME], [ADDRESS], [MOBILE_NO],
                    [CHANGED_MOBILE_NO], [SECONDARY_MOBILE_NO], [NOCS]
             FROM [${DB_NAME}].[dbo].[Customer]
-            WHERE [OLD_CONSUMER_ID] IN (${placeholders})
+            WHERE CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) IN (${placeholders})
           `, { replacements, type: sequelize.QueryTypes.SELECT });
 
-          results.forEach(c => { customerMap[c.OLD_CONSUMER_ID] = c; });
+          results.forEach(c => { customerMap[String(c.OLD_CONSUMER_ID).trim()] = c; });
         }
       }
 
       const enrichedRows = plainRows.map(row => {
-        const cust = customerMap[row.CustomerId] || {};
+        const trimmedId = row.CustomerId != null ? String(row.CustomerId).trim() : '';
+        const cust = customerMap[trimmedId] || {};
         return {
           ...row,
           CustomerName: cust.CUSTOMER_NAME || null,
@@ -312,7 +314,7 @@ class CMSDashboardController {
                c.CHANGED_MOBILE_NO, c.SECONDARY_MOBILE_NO, c.NOCS,
                m.InstallDate, m.NewMeterNoOCR, m.Latitude, m.Longitude
         FROM [${DB_NAME}].[dbo].[MeterInfo_test] m
-        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c ON m.CustomerId = c.OLD_CONSUMER_ID
+        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c ON LTRIM(RTRIM(m.CustomerId)) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
         WHERE ${whereSQL}
         ORDER BY m.CreateDate DESC
       `;

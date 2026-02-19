@@ -21,7 +21,9 @@ const sequelize = new Sequelize(
         encrypt: false,
         trustServerCertificate: true,
         enableArithAbort: true,
-        useUTC: true
+        useUTC: true,
+        requestTimeout: 300000,  // 5 minutes — needed for large bulk inserts (50k+ rows)
+        connectTimeout: 30000
       }
     },
     timezone: '+00:00'

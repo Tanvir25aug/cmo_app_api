@@ -45,9 +45,9 @@ app.use(cors(corsOptions));
 // Compression middleware
 app.use(compression());
 
-// Body parser middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parser middleware — increased limit for bulk customer uploads (50k+ rows)
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Request logging
 if (process.env.NODE_ENV === 'development') {

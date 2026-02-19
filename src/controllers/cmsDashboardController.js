@@ -356,9 +356,10 @@ class CMSDashboardController {
 
       const uniqueConsumerIds = [...new Set(allConsumerIds)];
 
-      const chunkSize = 500;
-      for (let i = 0; i < uniqueConsumerIds.length; i += chunkSize) {
-        const chunk = uniqueConsumerIds.slice(i, i + chunkSize);
+      // Use 500 for SELECT (only 1 param/row, well within SQL Server's 2100 param limit)
+      const selectChunkSize = 500;
+      for (let i = 0; i < uniqueConsumerIds.length; i += selectChunkSize) {
+        const chunk = uniqueConsumerIds.slice(i, i + selectChunkSize);
         const placeholders = chunk.map((_, idx) => `:id${idx}`).join(',');
         const replacements = {};
         chunk.forEach((id, idx) => { replacements[`id${idx}`] = id; });
@@ -386,9 +387,10 @@ class CMSDashboardController {
         return true;
       });
 
-      // Batch insert in chunks
-      for (let i = 0; i < toInsert.length; i += chunkSize) {
-        const chunk = toInsert.slice(i, i + chunkSize);
+      // INSERT chunk size: 9 params/row × 200 rows = 1800 params — safely under SQL Server's 2100 limit
+      const insertChunkSize = 200;
+      for (let i = 0; i < toInsert.length; i += insertChunkSize) {
+        const chunk = toInsert.slice(i, i + insertChunkSize);
 
         try {
           const values = [];
@@ -416,7 +418,7 @@ class CMSDashboardController {
           await sequelize.query(query, { replacements, type: sequelize.QueryTypes.INSERT });
           inserted += chunk.length;
         } catch (chunkError) {
-          logger.error(`Upload customers chunk error (rows ${i}-${i + chunk.length}): ${chunkError.message}`);
+          logger.error(`Upload customers chunk error (rows ${i + 1}-${i + chunk.length}): ${chunkError.message}`);
           errors.push(`Rows ${i + 1}-${i + chunk.length}: ${chunkError.message}`);
         }
       }

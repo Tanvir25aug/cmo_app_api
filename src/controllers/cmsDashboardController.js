@@ -332,6 +332,110 @@ class CMSDashboardController {
   }
 
   /**
+   * POST /api/cmo/upload-customers
+   * Insert customer records from Excel upload into Customer table
+   * Expects { customers: [...] } with Excel-parsed data
+   * Skips duplicates based on OLD_CONSUMER_ID
+   */
+  async uploadCustomers(req, res) {
+    try {
+      const { customers } = req.body;
+
+      if (!customers || !Array.isArray(customers) || customers.length === 0) {
+        return errorResponse(res, 'customers array is required and must not be empty', 400);
+      }
+
+      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+
+      // Get existing OLD_CONSUMER_IDs to skip duplicates
+      const existingIds = new Set();
+      const allConsumerIds = customers
+        .map(c => c.OLD_CONSUMER_ID)
+        .filter(id => id != null && String(id).trim() !== '')
+        .map(id => String(id).trim());
+
+      const uniqueConsumerIds = [...new Set(allConsumerIds)];
+
+      const chunkSize = 500;
+      for (let i = 0; i < uniqueConsumerIds.length; i += chunkSize) {
+        const chunk = uniqueConsumerIds.slice(i, i + chunkSize);
+        const placeholders = chunk.map((_, idx) => `:id${idx}`).join(',');
+        const replacements = {};
+        chunk.forEach((id, idx) => { replacements[`id${idx}`] = id; });
+
+        const results = await sequelize.query(`
+          SELECT CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) AS OLD_CONSUMER_ID
+          FROM [${DB_NAME}].[dbo].[Customer]
+          WHERE CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) IN (${placeholders})
+        `, { replacements, type: sequelize.QueryTypes.SELECT });
+
+        results.forEach(r => existingIds.add(String(r.OLD_CONSUMER_ID).trim()));
+      }
+
+      let inserted = 0;
+      let skipped = 0;
+      const errors = [];
+
+      // Filter out duplicates
+      const toInsert = customers.filter(c => {
+        const consumerId = c.OLD_CONSUMER_ID != null ? String(c.OLD_CONSUMER_ID).trim() : '';
+        if (!consumerId || existingIds.has(consumerId)) {
+          skipped++;
+          return false;
+        }
+        return true;
+      });
+
+      // Batch insert in chunks
+      for (let i = 0; i < toInsert.length; i += chunkSize) {
+        const chunk = toInsert.slice(i, i + chunkSize);
+
+        try {
+          const values = [];
+          const replacements = {};
+
+          chunk.forEach((row, idx) => {
+            values.push(`(:indexNo${idx}, :oldConsumerId${idx}, :customerName${idx}, :address${idx}, :custTariffCategory${idx}, :sanctionedLoad${idx}, :cpcCpr${idx}, :nocs${idx}, :nocsCode${idx}, 1, GETDATE())`);
+            replacements[`indexNo${idx}`] = row.INDEX_NO || null;
+            replacements[`oldConsumerId${idx}`] = row.OLD_CONSUMER_ID != null ? String(row.OLD_CONSUMER_ID).trim() : null;
+            replacements[`customerName${idx}`] = row.CUSTOMER_NAME || null;
+            replacements[`address${idx}`] = row.ADDRESS || null;
+            replacements[`custTariffCategory${idx}`] = row.CUST_TARIFF_CATEGORY || null;
+            replacements[`sanctionedLoad${idx}`] = row.SANCTIONED_LOAD != null ? String(row.SANCTIONED_LOAD) : null;
+            replacements[`cpcCpr${idx}`] = row.CPC_CPR || null;
+            replacements[`nocs${idx}`] = row.NOCS || null;
+            replacements[`nocsCode${idx}`] = row.NOCS_CODE || null;
+          });
+
+          const query = `
+            INSERT INTO [${DB_NAME}].[dbo].[Customer]
+              ([INDEX_NO], [OLD_CONSUMER_ID], [CUSTOMER_NAME], [ADDRESS], [CUST_TARIFF_CATEGORY], [SANCTIONED_LOAD], [CPC_CPR], [NOCS], [NOCS_CODE], [IsActive], [CreateDate])
+            VALUES ${values.join(', ')}
+          `;
+
+          await sequelize.query(query, { replacements, type: sequelize.QueryTypes.INSERT });
+          inserted += chunk.length;
+        } catch (chunkError) {
+          logger.error(`Upload customers chunk error (rows ${i}-${i + chunk.length}): ${chunkError.message}`);
+          errors.push(`Rows ${i + 1}-${i + chunk.length}: ${chunkError.message}`);
+        }
+      }
+
+      logger.info(`Upload customers: inserted ${inserted}, skipped ${skipped}, errors ${errors.length}`);
+
+      return successResponse(res, {
+        inserted,
+        skipped,
+        errors
+      }, `Customer upload completed. ${inserted} inserted, ${skipped} skipped.`);
+
+    } catch (error) {
+      logger.error(`Upload customers error: ${error.message}`);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
    * GET /api/cmo/cms-statistics
    * Get statistics from MeterInfo_test for CMS dashboard
    */

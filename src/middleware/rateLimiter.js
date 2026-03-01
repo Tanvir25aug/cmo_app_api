@@ -10,7 +10,9 @@ const apiLimiter = rateLimit({
     retryAfter: 60
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Skip rate limiting for chunked APK upload routes (100+ requests per upload)
+  skip: (req) => req.path.includes('/app/upload/')
 });
 
 // Strict limiter for auth endpoints (prevent brute force)

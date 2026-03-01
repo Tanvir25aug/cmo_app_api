@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { auth } = require('../middleware/auth');
+const { sequelize } = require('../config/database');
 
 // Ensure upload directories exist
 const tempUploadDir = path.join(__dirname, '../../uploads/temp');
@@ -238,44 +239,70 @@ router.post('/upload/complete', auth, async (req, res) => {
     const stats = fs.statSync(finalPath);
     console.log(`[CHUNKED] File assembled: ${finalFileName} (${stats.size} bytes)`);
 
-    // Save to DB using the service (runs version-code validation + correct INSERT logic)
-    console.log(`[CHUNKED] Saving to DB: version ${metadata.versionCode} (${metadata.versionName})`);
-    let newVersion;
-    try {
-      if (!appVersionService) {
-        throw new Error('appVersionService not available — check server logs for load errors');
+    // Validate version code is higher than existing
+    if (appVersionService) {
+      try {
+        const latestVersion = await appVersionService.getLatestVersion();
+        if (latestVersion && parseInt(metadata.versionCode) <= latestVersion.VersionCode) {
+          try { fs.unlinkSync(finalPath); } catch (_) {}
+          fs.rmSync(uploadDir, { recursive: true, force: true });
+          return res.status(400).json({
+            success: false,
+            message: `Version code must be greater than current latest: ${latestVersion.VersionCode}`
+          });
+        }
+      } catch (versionCheckErr) {
+        console.warn('[CHUNKED] Version check warning (continuing):', versionCheckErr.message);
       }
-      newVersion = await appVersionService.createVersion(
+    }
+
+    // Save to DB using raw SQL — most reliable, no file rename needed
+    console.log(`[CHUNKED] Saving to DB: version ${metadata.versionCode} (${metadata.versionName})`);
+    try {
+      await sequelize.query(
+        `INSERT INTO [AppVersions]
+           (VersionCode, VersionName, FileName, FilePath, FileSize,
+            ReleaseNotes, IsMandatory, IsActive, DownloadCount, UploadedBy,
+            CreatedAt, UpdatedAt)
+         VALUES
+           (:versionCode, :versionName, :fileName, :filePath, :fileSize,
+            :releaseNotes, :isMandatory, 1, 0, :uploadedBy,
+            GETDATE(), GETDATE())`,
         {
-          versionCode: parseInt(metadata.versionCode),
-          versionName: metadata.versionName,
-          releaseNotes: metadata.releaseNotes || '',
-          isMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true
-        },
-        { path: finalPath },          // mock multer file — service will rename it
-        req.securityId || null        // UploadedBy (SecurityId from auth middleware)
+          replacements: {
+            versionCode: parseInt(metadata.versionCode),
+            versionName: metadata.versionName,
+            fileName: finalFileName,
+            filePath: `/uploads/apk/${finalFileName}`,
+            fileSize: stats.size,
+            releaseNotes: metadata.releaseNotes || '',
+            isMandatory: (metadata.isMandatory === 'true' || metadata.isMandatory === true) ? 1 : 0,
+            uploadedBy: req.securityId || null
+          },
+          type: sequelize.QueryTypes.INSERT
+        }
       );
-      console.log(`[CHUNKED] DB record created: Id=${newVersion.Id}`);
+      console.log('[CHUNKED] DB record created successfully');
     } catch (dbError) {
-      // File assembled on disk but DB failed — clean up the assembled file
+      // Clean up the assembled file if DB insert fails
       try { fs.unlinkSync(finalPath); } catch (_) {}
-      console.error(`[CHUNKED] DB error: ${dbError.message}`);
-      throw dbError;  // Re-throw so outer catch returns 500 with clear message
+      fs.rmSync(uploadDir, { recursive: true, force: true });
+      console.error('[CHUNKED] DB INSERT error:', dbError.message);
+      return res.status(500).json({ success: false, message: `Database error: ${dbError.message}` });
     }
 
     // Cleanup chunks only after successful DB insert
     fs.rmSync(uploadDir, { recursive: true, force: true });
 
-    console.log(`[CHUNKED] Upload complete: ${newVersion.FileName}`);
+    console.log(`[CHUNKED] Upload complete: ${finalFileName}`);
     res.json({
       success: true,
       message: 'APK uploaded and version record saved successfully',
       data: {
-        id: newVersion.Id,
-        fileName: newVersion.FileName,
-        fileSize: newVersion.FileSize,
-        versionCode: newVersion.VersionCode,
-        versionName: newVersion.VersionName
+        fileName: finalFileName,
+        fileSize: stats.size,
+        versionCode: parseInt(metadata.versionCode),
+        versionName: metadata.versionName
       }
     });
   } catch (err) {

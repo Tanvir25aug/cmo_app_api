@@ -7,8 +7,22 @@ const logger = require('../utils/logger');
 class CMSDashboardController {
   /**
    * GET /api/cmo/cms-list
-   * List all MeterInfo records with pagination, search, and filters
-   * Used by CMS dashboard to display all CMO data
+   * List all MeterInfo_test records with pagination, search, and filters.
+   * Uses a raw SQL JOIN with Customer + AdminSecurity tables so that
+   * customer name, NOCS and installer name are available for filtering & display.
+   *
+   * Query params:
+   *   page, limit          – pagination
+   *   search               – searches OldConsumerId, NewMeterNoOCR, OldMeterNoOCR, CustomerName
+   *   sortBy, sortOrder    – column name + ASC/DESC
+   *   isApproved           – 0 or 1
+   *   isMDMEntry           – 0 or 1
+   *   hasRevisit           – 0 or 1
+   *   nocs                 – partial match on Customer.NOCS
+   *   dateFrom, dateTo     – InstallDate range (YYYY-MM-DD)
+   *   installedBy          – partial match on AdminSecurity.UserName
+   *   meterType            – exact match on NewMeterType (e.g. "1P", "3P")
+   *   hasSteelBox          – 0 or 1
    */
   async getAll(req, res) {
     try {
@@ -18,100 +32,139 @@ class CMSDashboardController {
         search,
         sortBy = 'CreateDate',
         sortOrder = 'DESC',
-        isApproved
+        isApproved,
+        isMDMEntry,
+        hasRevisit,
+        nocs,
+        dateFrom,
+        dateTo,
+        installedBy,
+        meterType,
+        hasSteelBox,
       } = req.query;
 
       const offset = (parseInt(page) - 1) * parseInt(limit);
+      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
 
-      // Build where clause - only active records
-      const where = { IsActive: 1 };
+      // Whitelist sort columns to prevent SQL injection
+      const allowedSort = ['CreateDate', 'InstallDate', 'OldConsumerId', 'NewMeterNoOCR', 'OldMeterNoOCR'];
+      const actualSortBy = allowedSort.includes(sortBy) ? sortBy : 'CreateDate';
+      const actualSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+      // Build WHERE clauses dynamically
+      const whereClauses = ['m.IsActive = 1'];
+      const replacements = {};
 
       if (isApproved !== undefined && isApproved !== '') {
-        where.IsApproved = parseInt(isApproved);
+        whereClauses.push('m.IsApproved = :isApproved');
+        replacements.isApproved = parseInt(isApproved);
       }
-
+      if (isMDMEntry !== undefined && isMDMEntry !== '') {
+        whereClauses.push('m.IsMDMEntry = :isMDMEntry');
+        replacements.isMDMEntry = parseInt(isMDMEntry);
+      }
+      if (hasRevisit !== undefined && hasRevisit !== '') {
+        whereClauses.push('m.HasRevisit = :hasRevisit');
+        replacements.hasRevisit = parseInt(hasRevisit);
+      }
+      if (meterType !== undefined && meterType !== '') {
+        whereClauses.push('m.NewMeterType = :meterType');
+        replacements.meterType = meterType;
+      }
+      if (hasSteelBox !== undefined && hasSteelBox !== '') {
+        whereClauses.push('m.HasSteelBox = :hasSteelBox');
+        replacements.hasSteelBox = parseInt(hasSteelBox);
+      }
+      if (nocs) {
+        whereClauses.push('c.NOCS LIKE :nocs');
+        replacements.nocs = `%${nocs}%`;
+      }
+      if (dateFrom) {
+        whereClauses.push("m.InstallDate >= :dateFrom");
+        replacements.dateFrom = dateFrom;
+      }
+      if (dateTo) {
+        whereClauses.push("m.InstallDate <= :dateTo");
+        replacements.dateTo = dateTo + ' 23:59:59';
+      }
+      if (installedBy) {
+        whereClauses.push('a.UserName LIKE :installedBy');
+        replacements.installedBy = `%${installedBy}%`;
+      }
       if (search) {
-        where[Op.or] = [
-          { CustomerId: { [Op.like]: `%${search}%` } },
-          { OldConsumerId: { [Op.like]: `%${search}%` } },
-          { NewMeterNoOCR: { [Op.like]: `%${search}%` } },
-          { OldMeterNoOCR: { [Op.like]: `%${search}%` } },
-          { MeterInstalledBy: { [Op.like]: `%${search}%` } }
-        ];
+        whereClauses.push(`(
+          m.OldConsumerId LIKE :search OR
+          m.CustomerId    LIKE :search OR
+          m.NewMeterNoOCR LIKE :search OR
+          m.OldMeterNoOCR LIKE :search OR
+          c.CUSTOMER_NAME LIKE :search
+        )`);
+        replacements.search = `%${search}%`;
       }
 
-      // Map sortBy to actual column names
-      const sortMap = {
-        'createdAt': 'CreateDate',
-        'CreateDate': 'CreateDate',
-        'customerId': 'CustomerId',
-        'CustomerId': 'CustomerId',
-        'installDate': 'InstallDate',
-        'InstallDate': 'InstallDate'
-      };
+      const whereSQL = whereClauses.join(' AND ');
 
-      const actualSortBy = sortMap[sortBy] || 'CreateDate';
+      const joinSQL = `
+        FROM [${DB_NAME}].[dbo].[MeterInfo_test] m
+        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c
+          ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
+        LEFT JOIN [${DB_NAME}].[dbo].[AdminSecurity] a
+          ON m.CreateBy = a.SecurityId
+      `;
 
-      const { count, rows } = await MeterInfo.findAndCountAll({
-        where,
-        limit: parseInt(limit),
-        offset,
-        order: [[actualSortBy, sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC']],
-        include: [{
-          model: AdminSecurity,
-          as: 'creator',
-          attributes: ['SecurityId', 'UserId', 'UserName'],
-          required: false
-        }]
+      // Count query for pagination
+      const countQuery = `SELECT COUNT(*) AS total ${joinSQL} WHERE ${whereSQL}`;
+
+      // Data query – selects all needed columns
+      const dataQuery = `
+        SELECT
+          m.Id, m.CustomerId, m.OldConsumerId, m.InstallDate,
+          m.Latitude, m.Longitude,
+          m.HasOldMeterNo, m.OldMeterNoOCR, m.OldMeterNoImgUrl,
+          m.HasOldMeterReading, m.OldMeterReadingOCR,
+          m.OldMeterPeak, m.OldMeterOffPeak, m.OldMeterKVAR,
+          m.HasNewMeterNo, m.NewMeterNoOCR, m.NewMeterNoImgUrl,
+          m.NewMeterType,
+          m.HasBatteryCoverSeal, m.BatteryCoverSealOCR, m.BatteryCoverSealImgUrl,
+          m.HasTerminalCoverSeal1, m.TerminalCoverSealOCR1, m.TerminalCoverSealImgUrl1,
+          m.HasTerminalCoverSeal2, m.TerminalCoverSealOCR2, m.TerminalCoverSealImgUrl2,
+          m.HasSteelBox, m.MeterInstalledBy,
+          m.IsApproved, m.IsMDMEntry, m.IsAppsEntry,
+          m.HasRevisit, m.RectifyStatus,
+          m.CreateBy, m.CreateDate, m.UpdateDate,
+          c.CUSTOMER_NAME AS CustomerName,
+          c.ADDRESS       AS CustomerAddress,
+          c.MOBILE_NO     AS CustomerMobile,
+          c.NOCS          AS CustomerNOCS,
+          c.FEEDER_NAME   AS CustomerFeeder,
+          c.ZONE          AS CustomerZone,
+          a.UserName      AS InstallerName
+        ${joinSQL}
+        WHERE ${whereSQL}
+        ORDER BY m.${actualSortBy} ${actualSortOrder}
+        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+      `;
+
+      replacements.offset = offset;
+      replacements.limit = parseInt(limit);
+
+      const [countResult] = await sequelize.query(countQuery, {
+        replacements,
+        type: sequelize.QueryTypes.SELECT
       });
 
-      // Enrich rows with Customer data from MSSQL
-      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
-      const plainRows = rows.map(r => r.get({ plain: true }));
-      const customerIds = [...new Set(
-        plainRows.map(r => r.CustomerId).filter(id => id != null && String(id).trim() !== '').map(id => String(id).trim())
-      )];
-
-      let customerMap = {};
-      if (customerIds.length > 0) {
-        const chunkSize = 500;
-        for (let i = 0; i < customerIds.length; i += chunkSize) {
-          const chunk = customerIds.slice(i, i + chunkSize);
-          const placeholders = chunk.map((_, idx) => `:id${idx}`).join(',');
-          const replacements = {};
-          chunk.forEach((id, idx) => { replacements[`id${idx}`] = id; });
-
-          const results = await sequelize.query(`
-            SELECT CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) AS OLD_CONSUMER_ID,
-                   [CUSTOMER_NAME], [ADDRESS], [MOBILE_NO],
-                   [CHANGED_MOBILE_NO], [SECONDARY_MOBILE_NO], [NOCS]
-            FROM [${DB_NAME}].[dbo].[Customer]
-            WHERE CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) IN (${placeholders})
-          `, { replacements, type: sequelize.QueryTypes.SELECT });
-
-          results.forEach(c => { customerMap[String(c.OLD_CONSUMER_ID).trim()] = c; });
-        }
-      }
-
-      const enrichedRows = plainRows.map(row => {
-        const trimmedId = row.CustomerId != null ? String(row.CustomerId).trim() : '';
-        const cust = customerMap[trimmedId] || {};
-        return {
-          ...row,
-          CustomerName: cust.CUSTOMER_NAME || null,
-          Address: cust.ADDRESS || null,
-          MobileNo: cust.MOBILE_NO || null,
-          ChangedMobileNo: cust.CHANGED_MOBILE_NO || null,
-          SecondaryMobileNo: cust.SECONDARY_MOBILE_NO || null,
-          NOCS: cust.NOCS || null
-        };
+      const rows = await sequelize.query(dataQuery, {
+        replacements,
+        type: sequelize.QueryTypes.SELECT
       });
 
-      return paginatedResponse(res, enrichedRows, {
-        total: count,
+      const total = countResult.total || 0;
+
+      return paginatedResponse(res, rows, {
+        total,
         page: parseInt(page),
         limit: parseInt(limit),
-        totalPages: Math.ceil(count / parseInt(limit))
+        totalPages: Math.ceil(total / parseInt(limit))
       }, 'CMO records retrieved successfully');
 
     } catch (error) {

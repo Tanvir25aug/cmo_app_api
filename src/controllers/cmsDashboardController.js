@@ -104,18 +104,11 @@ class CMSDashboardController {
 
       const whereSQL = whereClauses.join(' AND ');
 
-      const joinSQL = `
-        FROM [${DB_NAME}].[dbo].[MeterInfo_test] m
-        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c
-          ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
-        LEFT JOIN [${DB_NAME}].[dbo].[AdminSecurity] a
-          ON m.CreateBy = a.SecurityId
-      `;
+      replacements.offset = offset;
+      replacements.limit = parseInt(limit);
 
-      // Count query for pagination
-      const countQuery = `SELECT COUNT(*) AS total ${joinSQL} WHERE ${whereSQL}`;
-
-      // Data query – selects all needed columns
+      // Single query: COUNT(*) OVER() avoids a separate round-trip for pagination total.
+      // WITH (NOLOCK) prevents reads from blocking behind active inserts/updates.
       const dataQuery = `
         SELECT
           m.Id, m.CustomerId, m.OldConsumerId, m.InstallDate,
@@ -138,27 +131,26 @@ class CMSDashboardController {
           c.NOCS          AS CustomerNOCS,
           c.FEEDER_NAME   AS CustomerFeeder,
           c.ZONE          AS CustomerZone,
-          a.UserName      AS InstallerName
-        ${joinSQL}
+          a.UserName      AS InstallerName,
+          COUNT(*) OVER()  AS TotalCount
+        FROM [${DB_NAME}].[dbo].[MeterInfo_test] m WITH (NOLOCK)
+        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c WITH (NOLOCK)
+          ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
+        LEFT JOIN [${DB_NAME}].[dbo].[AdminSecurity] a WITH (NOLOCK)
+          ON m.CreateBy = a.SecurityId
         WHERE ${whereSQL}
         ORDER BY m.${actualSortBy} ${actualSortOrder}
         OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
       `;
 
-      replacements.offset = offset;
-      replacements.limit = parseInt(limit);
-
-      const [countResult] = await sequelize.query(countQuery, {
+      const rawRows = await sequelize.query(dataQuery, {
         replacements,
         type: sequelize.QueryTypes.SELECT
       });
 
-      const rows = await sequelize.query(dataQuery, {
-        replacements,
-        type: sequelize.QueryTypes.SELECT
-      });
-
-      const total = countResult.total || 0;
+      const total = rawRows.length > 0 ? (rawRows[0].TotalCount || 0) : 0;
+      // Strip the internal pagination helper column before returning to the client
+      const rows = rawRows.map(({ TotalCount, ...r }) => r);
 
       return paginatedResponse(res, rows, {
         total,

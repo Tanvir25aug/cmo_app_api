@@ -125,6 +125,7 @@ class CMSDashboardController {
           m.IsApproved, m.IsMDMEntry, m.IsAppsEntry,
           m.HasRevisit, m.RectifyStatus,
           m.CreateBy, m.CreateDate, m.UpdateDate,
+          m.LocalId,
           c.CUSTOMER_NAME AS CustomerName,
           c.ADDRESS       AS CustomerAddress,
           c.MOBILE_NO     AS CustomerMobile,
@@ -161,6 +162,48 @@ class CMSDashboardController {
 
     } catch (error) {
       logger.error(`CMS Dashboard getAll error: ${error.message}`);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * PATCH /api/cmo/cms-list/:id/approval
+   * Toggle IsApproved for a single MeterInfo_test record.
+   * Body: { isApproved: 0 | 1 }
+   * isApproved = 1 → Approved
+   * isApproved = 0 → Pending (returned to field worker for re-edit)
+   */
+  async updateApproval(req, res) {
+    try {
+      const { id } = req.params;
+      const { isApproved } = req.body;
+
+      if (isApproved === undefined || isApproved === null) {
+        return errorResponse(res, 'isApproved is required (0 or 1)', 400);
+      }
+
+      const approvedValue = parseInt(isApproved) === 1 ? 1 : 0;
+      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+
+      await sequelize.query(`
+        UPDATE [${DB_NAME}].[dbo].[MeterInfo_test]
+        SET IsApproved = :isApproved,
+            UpdateDate = GETDATE()
+        WHERE Id = :id AND IsActive = 1
+      `, {
+        replacements: { isApproved: approvedValue, id: parseInt(id) },
+        type: sequelize.QueryTypes.UPDATE
+      });
+
+      const message = approvedValue === 1
+        ? 'Record approved successfully'
+        : 'Record unapproved — returned to pending for re-edit';
+
+      logger.info(`Approval updated: MeterInfo Id=${id} → IsApproved=${approvedValue}`);
+      return successResponse(res, { id: parseInt(id), isApproved: approvedValue }, message);
+
+    } catch (error) {
+      logger.error(`updateApproval error: ${error.message}`);
       return errorResponse(res, error.message, 500);
     }
   }

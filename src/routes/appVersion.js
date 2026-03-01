@@ -29,6 +29,16 @@ try {
   appVersionController = {};
 }
 
+// Load service (used by chunked upload complete handler)
+let appVersionService;
+try {
+  appVersionService = require('../services/appVersionService');
+  console.log('AppVersion service loaded successfully');
+} catch (err) {
+  console.error('Failed to load appVersionService:', err.message);
+  appVersionService = null;
+}
+
 // Configure multer for APK uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -226,44 +236,46 @@ router.post('/upload/complete', auth, async (req, res) => {
 
     // Get final file size
     const stats = fs.statSync(finalPath);
+    console.log(`[CHUNKED] File assembled: ${finalFileName} (${stats.size} bytes)`);
 
-    // Create database record
-    console.log(`[CHUNKED] Creating database record for version ${metadata.versionCode} (${metadata.versionName})`);
+    // Save to DB using the service (runs version-code validation + correct INSERT logic)
+    console.log(`[CHUNKED] Saving to DB: version ${metadata.versionCode} (${metadata.versionName})`);
+    let newVersion;
     try {
-      const AppVersion = require('../models/AppVersion');
-      const newVersion = await AppVersion.create({
-        VersionCode: parseInt(metadata.versionCode),
-        VersionName: metadata.versionName,
-        FileName: finalFileName,
-        FilePath: `/uploads/apk/${finalFileName}`,
-        FileSize: stats.size,
-        ReleaseNotes: metadata.releaseNotes || '',
-        IsMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true ? 1 : 0,
-        IsActive: 1,
-        DownloadCount: 0,
-        UploadedBy: req.user?.SecurityId || null,
-        CreatedAt: new Date(),
-        UpdatedAt: new Date()
-      });
-      console.log(`[CHUNKED] Database record created with ID: ${newVersion.Id}`);
+      if (!appVersionService) {
+        throw new Error('appVersionService not available — check server logs for load errors');
+      }
+      newVersion = await appVersionService.createVersion(
+        {
+          versionCode: parseInt(metadata.versionCode),
+          versionName: metadata.versionName,
+          releaseNotes: metadata.releaseNotes || '',
+          isMandatory: metadata.isMandatory === 'true' || metadata.isMandatory === true
+        },
+        { path: finalPath },          // mock multer file — service will rename it
+        req.securityId || null        // UploadedBy (SecurityId from auth middleware)
+      );
+      console.log(`[CHUNKED] DB record created: Id=${newVersion.Id}`);
     } catch (dbError) {
-      console.error(`[CHUNKED] Database error: ${dbError.message}`);
-      console.error(`[CHUNKED] Database error stack: ${dbError.stack}`);
-      throw dbError;
+      // File assembled on disk but DB failed — clean up the assembled file
+      try { fs.unlinkSync(finalPath); } catch (_) {}
+      console.error(`[CHUNKED] DB error: ${dbError.message}`);
+      throw dbError;  // Re-throw so outer catch returns 500 with clear message
     }
 
-    // Cleanup chunks
+    // Cleanup chunks only after successful DB insert
     fs.rmSync(uploadDir, { recursive: true, force: true });
 
-    console.log(`[CHUNKED] Upload complete: ${finalFileName} (${stats.size} bytes)`);
+    console.log(`[CHUNKED] Upload complete: ${newVersion.FileName}`);
     res.json({
       success: true,
-      message: 'Upload complete',
+      message: 'APK uploaded and version record saved successfully',
       data: {
-        fileName: finalFileName,
-        fileSize: stats.size,
-        versionCode: metadata.versionCode,
-        versionName: metadata.versionName
+        id: newVersion.Id,
+        fileName: newVersion.FileName,
+        fileSize: newVersion.FileSize,
+        versionCode: newVersion.VersionCode,
+        versionName: newVersion.VersionName
       }
     });
   } catch (err) {
@@ -271,14 +283,6 @@ router.post('/upload/complete', auth, async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
-
-// Load appVersionService for chunked upload
-let appVersionService;
-try {
-  appVersionService = require('../services/appVersionService');
-} catch (err) {
-  console.error('Failed to load appVersionService in routes:', err.message);
-}
 
 // ============ ORIGINAL UPLOAD ROUTE (kept for backward compatibility) ============
 

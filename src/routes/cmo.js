@@ -13,6 +13,7 @@ router.use(auth);
 // CMS Dashboard routes (must be before /:id)
 router.get('/cms-list', cmsDashboardController.getAll);
 router.patch('/cms-list/:id/approval', cmsDashboardController.updateApproval);
+router.post('/cms-list/:id/approval', cmsDashboardController.updateApproval); // Flutter uses POST
 router.get('/cms-export', cmsDashboardController.getExportData);
 router.get('/cms-statistics', cmsDashboardController.getStatistics);
 router.post('/check-mdm-entry', cmsDashboardController.checkMDMEntry);

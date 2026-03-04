@@ -124,7 +124,7 @@ class CMSDashboardController {
           m.HasSteelBox, m.MeterInstalledBy,
           m.IsApproved, m.IsMDMEntry, m.IsAppsEntry,
           m.HasRevisit, m.RectifyStatus,
-          m.CreateBy, m.CreateDate, m.UpdateDate,
+          m.CreateBy, m.CreateDate, m.UpdateDate, m.LocalId,
           c.CUSTOMER_NAME AS CustomerName,
           c.ADDRESS       AS CustomerAddress,
           c.MOBILE_NO     AS CustomerMobile,

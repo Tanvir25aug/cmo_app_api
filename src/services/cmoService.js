@@ -194,6 +194,7 @@ class CMOService {
             OldMeterPeak: cmoData.OldMeterPeak,
             OldMeterOffPeak: cmoData.OldMeterOffPeak,
             OldMeterKVAR: cmoData.OldMeterKVAR,
+            OldMeterBillingType: cmoData.OldMeterBillingType,
             HasNewMeterNo: cmoData.HasNewMeterNo || 0,
             NewMeterNoImgUrl: cmoData.NewMeterNoImgUrl,
             NewMeterNoOCR: cmoData.NewMeterNoOCR,

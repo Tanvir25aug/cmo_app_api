@@ -57,6 +57,9 @@ const MeterInfo = sequelize.define('MeterInfo', {
   OldMeterKVAR: {
     type: DataTypes.STRING(50)
   },
+  OldMeterBillingType: {
+    type: DataTypes.STRING(50)
+  },
   HasNewMeterNo: {
     type: DataTypes.INTEGER,
     defaultValue: 0

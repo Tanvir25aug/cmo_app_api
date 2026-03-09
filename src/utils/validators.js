@@ -71,9 +71,8 @@ const validateCMO = [
     .withMessage('Customer name cannot exceed 100 characters'),
 
   body('mobileNumber')
+    .optional({ nullable: true, checkFalsy: true })
     .trim()
-    .notEmpty()
-    .withMessage('Mobile number is required')
     .matches(/^[0-9+\-\s()]+$/)
     .withMessage('Please provide a valid mobile number'),
 

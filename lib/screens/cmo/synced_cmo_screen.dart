@@ -942,13 +942,13 @@ class _SyncedCmoCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
 
-                // ── Row 3: Date, NOCS, Type, Installer ──
-                Row(
+                // ── Row 3: Date, NOCS, Type ──
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
                   children: [
                     _InfoPill(Icons.calendar_month_outlined, displayDate ?? '—', Colors.teal),
-                    const SizedBox(width: 6),
                     _InfoPill(Icons.electrical_services_outlined, record.customerNocs ?? '—', Colors.deepPurple),
-                    const SizedBox(width: 6),
                     if (record.newMeterType != null)
                       _InfoPill(Icons.category_outlined, record.newMeterType!, Colors.orange),
                   ],
@@ -1882,7 +1882,15 @@ class _InfoPill extends StatelessWidget {
       children: [
         Icon(icon, size: 11, color: color),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 140),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
       ],
     ),
   );

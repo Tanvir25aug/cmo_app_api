@@ -31,7 +31,7 @@ class ReportService {
   }
 
   /**
-   * Get CMO statistics from MeterInfo_test table
+   * Get CMO statistics from MeterInfo table
    */
   async getCMOStatistics() {
     try {
@@ -103,9 +103,9 @@ class ReportService {
 
       return {
         total,
-        draft: 0, // MeterInfo_test only has synced data
+        draft: 0, // MeterInfo only has synced data
         pending,
-        uploaded: total, // All records in MeterInfo_test are uploaded
+        uploaded: total, // All records in MeterInfo are uploaded
         synced,
         withLocation,
         today: todayCount,
@@ -132,7 +132,7 @@ class ReportService {
   }
 
   /**
-   * Get customer count (unique customers from MeterInfo_test)
+   * Get customer count (unique customers from MeterInfo)
    */
   async getCustomerCount() {
     try {
@@ -161,7 +161,7 @@ class ReportService {
           a.UserName as fullName,
           COUNT(m.Id) as cmo_count
         FROM AdminSecurity a
-        LEFT JOIN MeterInfo_test m ON a.SecurityId = m.CreateBy AND m.IsActive = 1
+        LEFT JOIN MeterInfo m ON a.SecurityId = m.CreateBy AND m.IsActive = 1
         GROUP BY a.SecurityId, a.UserId, a.UserName
         HAVING COUNT(m.Id) > 0
         ORDER BY cmo_count DESC

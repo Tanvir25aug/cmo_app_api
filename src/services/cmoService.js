@@ -138,7 +138,7 @@ class CMOService {
     return { message: 'CMO request deleted successfully' };
   }
 
-  // Bulk sync CMOs from mobile app to MeterInfo_test table
+  // Bulk sync CMOs from mobile app to MeterInfo table
   async syncCMOs(userId, cmos, securityId) {
     const results = {
       success: [],
@@ -176,7 +176,7 @@ class CMOService {
           await existingRecord.update(updateData);
           meterInfo = existingRecord;
         } else {
-          // Create new record in MeterInfo_test table
+          // Create new record in MeterInfo table
           meterInfo = await MeterInfo.create({
             CustomerId: cmoData.CustomerId,
             OldConsumerId: cmoData.OldConsumerId || cmoData.CustomerId,

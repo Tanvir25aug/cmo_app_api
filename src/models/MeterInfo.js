@@ -194,7 +194,7 @@ const MeterInfo = sequelize.define('MeterInfo', {
     type: DataTypes.STRING(50)
   }
 }, {
-  tableName: 'MeterInfo_test',
+  tableName: 'MeterInfo',
   timestamps: false,
   freezeTableName: true
 });

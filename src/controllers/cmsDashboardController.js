@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 class CMSDashboardController {
   /**
    * GET /api/cmo/cms-list
-   * List all MeterInfo_test records with pagination, search, and filters.
+   * List all MeterInfo records with pagination, search, and filters.
    * Uses a raw SQL JOIN with Customer + AdminSecurity tables so that
    * customer name, NOCS and installer name are available for filtering & display.
    *
@@ -133,7 +133,7 @@ class CMSDashboardController {
           c.ZONE          AS CustomerZone,
           a.UserName      AS InstallerName,
           COUNT(*) OVER()  AS TotalCount
-        FROM [${DB_NAME}].[dbo].[MeterInfo_test] m WITH (NOLOCK)
+        FROM [${DB_NAME}].[dbo].[MeterInfo] m WITH (NOLOCK)
         LEFT JOIN [${DB_NAME}].[dbo].[Customer] c WITH (NOLOCK)
           ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
         LEFT JOIN [${DB_NAME}].[dbo].[AdminSecurity] a WITH (NOLOCK)
@@ -167,7 +167,7 @@ class CMSDashboardController {
 
   /**
    * PATCH /api/cmo/cms-list/:id/approval
-   * Toggle IsApproved for a single MeterInfo_test record.
+   * Toggle IsApproved for a single MeterInfo record.
    * Body: { isApproved: 0 | 1 }
    * isApproved = 1 → Approved
    * isApproved = 0 → Pending (returned to field worker for re-edit)
@@ -185,7 +185,7 @@ class CMSDashboardController {
       const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
 
       await sequelize.query(`
-        UPDATE [${DB_NAME}].[dbo].[MeterInfo_test]
+        UPDATE [${DB_NAME}].[dbo].[MeterInfo]
         SET IsApproved = :isApproved,
             UpdateDate = GETDATE()
         WHERE Id = :id AND IsActive = 1
@@ -400,7 +400,7 @@ class CMSDashboardController {
         SELECT m.CustomerId, c.CUSTOMER_NAME, c.ADDRESS, c.MOBILE_NO,
                c.CHANGED_MOBILE_NO, c.SECONDARY_MOBILE_NO, c.NOCS,
                m.InstallDate, m.NewMeterNoOCR, m.Latitude, m.Longitude
-        FROM [${DB_NAME}].[dbo].[MeterInfo_test] m
+        FROM [${DB_NAME}].[dbo].[MeterInfo] m
         LEFT JOIN [${DB_NAME}].[dbo].[Customer] c ON LTRIM(RTRIM(m.CustomerId)) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
         WHERE ${whereSQL}
         ORDER BY m.CreateDate DESC
@@ -526,7 +526,7 @@ class CMSDashboardController {
 
   /**
    * GET /api/cmo/cms-statistics
-   * Get statistics from MeterInfo_test for CMS dashboard
+   * Get statistics from MeterInfo for CMS dashboard
    */
   async getStatistics(req, res) {
     try {

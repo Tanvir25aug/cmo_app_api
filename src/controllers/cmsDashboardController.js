@@ -525,6 +525,50 @@ class CMSDashboardController {
   }
 
   /**
+   * GET /api/cmo/filter-options
+   * Returns distinct NOCS values and installer usernames from active MeterInfo records.
+   * Used by Flutter advanced filter dropdowns.
+   */
+  async getFilterOptions(req, res) {
+    try {
+      const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+
+      const [nocsRows, installerRows] = await Promise.all([
+        sequelize.query(`
+          SELECT DISTINCT LTRIM(RTRIM(c.NOCS)) AS nocs
+          FROM [${DB_NAME}].[dbo].[MeterInfo] m WITH (NOLOCK)
+          INNER JOIN [${DB_NAME}].[dbo].[Customer] c WITH (NOLOCK)
+            ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
+          WHERE m.IsActive = 1
+            AND c.NOCS IS NOT NULL
+            AND LTRIM(RTRIM(c.NOCS)) <> ''
+          ORDER BY nocs ASC
+        `, { type: sequelize.QueryTypes.SELECT }),
+
+        sequelize.query(`
+          SELECT DISTINCT LTRIM(RTRIM(a.UserName)) AS userName
+          FROM [${DB_NAME}].[dbo].[MeterInfo] m WITH (NOLOCK)
+          INNER JOIN [${DB_NAME}].[dbo].[AdminSecurity] a WITH (NOLOCK)
+            ON m.CreateBy = a.SecurityId
+          WHERE m.IsActive = 1
+            AND a.UserName IS NOT NULL
+            AND LTRIM(RTRIM(a.UserName)) <> ''
+          ORDER BY userName ASC
+        `, { type: sequelize.QueryTypes.SELECT })
+      ]);
+
+      return successResponse(res, {
+        nocs: nocsRows.map(r => r.nocs),
+        installers: installerRows.map(r => r.userName)
+      }, 'Filter options retrieved successfully');
+
+    } catch (error) {
+      logger.error(`getFilterOptions error: ${error.message}`);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
    * GET /api/cmo/cms-statistics
    * Get statistics from MeterInfo for CMS dashboard
    */

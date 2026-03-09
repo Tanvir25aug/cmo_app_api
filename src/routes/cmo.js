@@ -16,6 +16,7 @@ router.patch('/cms-list/:id/approval', cmsDashboardController.updateApproval);
 router.post('/cms-list/:id/approval', cmsDashboardController.updateApproval); // Flutter uses POST
 router.get('/cms-export', cmsDashboardController.getExportData);
 router.get('/cms-statistics', cmsDashboardController.getStatistics);
+router.get('/filter-options', cmsDashboardController.getFilterOptions);
 router.post('/check-mdm-entry', cmsDashboardController.checkMDMEntry);
 router.get('/unchecked-mdm', cmsDashboardController.getUncheckedMDM);
 router.post('/bulk-update-mdm', cmsDashboardController.bulkUpdateMDM);

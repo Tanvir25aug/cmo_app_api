@@ -31,7 +31,7 @@ const CMO = sequelize.define('CMO', {
   },
   mobileNumber: {
     type: DataTypes.STRING(20),
-    allowNull: true,
+    allowNull: false,
     field: 'mobile_number'
   },
   secondaryMobileNumber: {

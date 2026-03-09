@@ -21,6 +21,9 @@ class ApiConfig {
   static const String cmoDelete = '/cmo'; // + /:id
   static const String cmoSync = '/cmo/sync';
   static const String cmoStatistics = '/cmo/statistics';
+  static const String cmsSyncedList = '/cmo/cms-list'; // MeterInfo records
+  static const String cmsApprovalUpdate = '/cmo/cms-list'; // + /:id/approval
+  static const String cmsFilterOptions = '/cmo/filter-options'; // NOCS + installer dropdowns
 
   // Report Endpoints (Admin Dashboard - from SQL Server)
   static const String reportDashboard = '/reports/dashboard';
@@ -44,10 +47,17 @@ class ApiConfig {
   // Health Check
   static const String health = '/health';
 
+  // App Update Endpoints
+  static const String appVersionLatest = '/app/latest';
+  static const String appVersionCheck = '/app/check-update'; // + ?versionCode=X
+  static const String appVersionDownload = '/app/download'; // + /:id
+
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 30);
+  // Longer timeout for paginated list endpoints that JOIN large tables
+  static const Duration listTimeout = Duration(seconds: 60);
 
   // Headers
   static Map<String, String> get defaultHeaders => {

@@ -342,10 +342,10 @@ class _SyncedCmoScreenState extends State<SyncedCmoScreen> {
                             decoration: _filterInputDecoration('Select NOCS'),
                             hint: const Text('All NOCS', style: TextStyle(fontSize: 13)),
                             items: [
-                              const DropdownMenuItem<String>(value: null, child: Text('All NOCS', style: TextStyle(fontSize: 13))),
+                              const DropdownMenuItem<String>(value: null, child: Text('All NOCS', style: TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
                               ..._nocsList.map((n) => DropdownMenuItem<String>(
                                 value: n,
-                                child: Text(n, style: const TextStyle(fontSize: 13)),
+                                child: Text(n, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
                               )),
                             ],
                             onChanged: (v) => setSheetState(() => _nocsFilter = v),
@@ -381,10 +381,10 @@ class _SyncedCmoScreenState extends State<SyncedCmoScreen> {
                             decoration: _filterInputDecoration('Select Installer / User'),
                             hint: const Text('All Users', style: TextStyle(fontSize: 13)),
                             items: [
-                              const DropdownMenuItem<String>(value: null, child: Text('All Users', style: TextStyle(fontSize: 13))),
+                              const DropdownMenuItem<String>(value: null, child: Text('All Users', style: TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
                               ..._installersList.map((u) => DropdownMenuItem<String>(
                                 value: u,
-                                child: Text(u, style: const TextStyle(fontSize: 13)),
+                                child: Text(u, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
                               )),
                             ],
                             onChanged: (v) => setSheetState(() => _installerFilter = v),

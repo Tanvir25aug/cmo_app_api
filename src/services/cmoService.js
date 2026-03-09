@@ -234,8 +234,7 @@ class CMOService {
             CreateBy: securityId,
             CreateDate: formatDateForSqlServer(null),
             UpdateBy: null,
-            UpdateDate: null,
-            LocalId: cmoData.LocalId || null
+            UpdateDate: null
           });
         }
 

@@ -192,9 +192,6 @@ const MeterInfo = sequelize.define('MeterInfo', {
   },
   UpdateDate: {
     type: DataTypes.STRING(50)
-  },
-  LocalId: {
-    type: DataTypes.STRING(50)  // UUID string from Flutter local cmo_requests.id
   }
 }, {
   tableName: 'MeterInfo_test',

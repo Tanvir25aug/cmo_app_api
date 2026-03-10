@@ -21,12 +21,6 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const checkAppVersion = async (req, res, next) => {
   const headerCode = req.header('X-App-Version-Code');
 
-  // No header → not a mobile app request, allow through
-  if (!headerCode) return next();
-
-  const clientCode = parseInt(headerCode, 10);
-  if (isNaN(clientCode)) return next();
-
   try {
     const now = Date.now();
 
@@ -39,10 +33,26 @@ const checkAppVersion = async (req, res, next) => {
       _cacheTime = now;
     }
 
-    // No version record in DB → allow all
+    // No version record in DB → allow all (no enforcement yet)
     if (!_cachedVersion) return next();
 
-    if (clientCode < _cachedVersion.VersionCode) {
+    // No version header sent → this is an old app that predates version checking
+    // Block it since we know a current version exists in the DB
+    if (!headerCode) {
+      return res.status(426).json({
+        success: false,
+        updateRequired: true,
+        message: `আপনার অ্যাপ পুরানো ভার্সন। সিঙ্ক ও ডেটা ফেচ করতে ভার্সন ${_cachedVersion.VersionName} আপডেট করুন।`,
+        messageEn: `Your app is outdated. Please update to v${_cachedVersion.VersionName} to continue.`,
+        data: {
+          requiredVersionCode: _cachedVersion.VersionCode,
+          requiredVersionName: _cachedVersion.VersionName,
+        },
+      });
+    }
+
+    const clientCode = parseInt(headerCode, 10);
+    if (!isNaN(clientCode) && clientCode < _cachedVersion.VersionCode) {
       const clientName = req.header('X-App-Version-Name') || String(clientCode);
       return res.status(426).json({
         success: false,

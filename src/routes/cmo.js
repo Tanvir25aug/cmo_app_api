@@ -4,11 +4,13 @@ const cmoController = require('../controllers/cmoController');
 const bulkCmoController = require('../controllers/bulkCmoController');
 const cmsDashboardController = require('../controllers/cmsDashboardController');
 const { auth } = require('../middleware/auth');
+const { checkAppVersion } = require('../middleware/versionCheck');
 const { upload } = require('../config/multer');
 const { validateCMO } = require('../utils/validators');
 
-// All routes require authentication
+// All routes require authentication + current app version
 router.use(auth);
+router.use(checkAppVersion);
 
 // CMS Dashboard routes (must be before /:id)
 router.get('/cms-list', cmsDashboardController.getAll);

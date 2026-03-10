@@ -1,4 +1,5 @@
 const { successResponse, errorResponse } = require('../utils/response');
+const { invalidateVersionCache } = require('../middleware/versionCheck');
 const path = require('path');
 const fs = require('fs');
 
@@ -101,6 +102,8 @@ const uploadVersion = async (req, res) => {
       req.file,
       req.user?.SecurityId || null
     );
+
+    invalidateVersionCache(); // Force cache refresh so new version is enforced immediately
 
     return successResponse(res, {
       version: {

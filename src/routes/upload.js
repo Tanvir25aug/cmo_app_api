@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { auth } = require('../middleware/auth');
+const { checkAppVersion } = require('../middleware/versionCheck');
 const { uploadLimiter } = require('../middleware/rateLimiter');
 
 // Get upload path from env or default
@@ -74,7 +75,7 @@ const uploadSeals = multer({
 });
 
 // POST /api/upload/meters - Upload meter image
-router.post('/meters', uploadLimiter, auth, uploadMeters.single('image'), (req, res) => {
+router.post('/meters', uploadLimiter, auth, checkAppVersion, uploadMeters.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -102,7 +103,7 @@ router.post('/meters', uploadLimiter, auth, uploadMeters.single('image'), (req, 
 });
 
 // POST /api/upload/seals - Upload seal image
-router.post('/seals', uploadLimiter, auth, uploadSeals.single('image'), (req, res) => {
+router.post('/seals', uploadLimiter, auth, checkAppVersion, uploadSeals.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({

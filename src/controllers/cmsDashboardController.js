@@ -94,7 +94,6 @@ class CMSDashboardController {
       if (search) {
         whereClauses.push(`(
           m.OldConsumerId LIKE :search OR
-          m.CustomerId    LIKE :search OR
           m.NewMeterNoOCR LIKE :search OR
           m.OldMeterNoOCR LIKE :search OR
           c.CUSTOMER_NAME LIKE :search
@@ -218,6 +217,7 @@ class CMSDashboardController {
       const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
 
       // Get all active MeterInfo records where IsMDMEntry is 0 or null
+      // Fetch OldConsumerId (= Customer.OLD_CONSUMER_ID) — not CustomerId (= Customer.ID int)
       const uncheckedRecords = await MeterInfo.findAll({
         where: {
           IsActive: 1,
@@ -226,7 +226,7 @@ class CMSDashboardController {
             { IsMDMEntry: null }
           ]
         },
-        attributes: ['Id', 'CustomerId']
+        attributes: ['Id', 'OldConsumerId']
       });
 
       if (uncheckedRecords.length === 0) {
@@ -237,37 +237,37 @@ class CMSDashboardController {
         }, 'MDM Entry check completed - no records to check');
       }
 
-      // Get unique CustomerIds (filter out nulls/empties)
-      const customerIds = [...new Set(
+      // Get unique OldConsumerIds (= Customer.OLD_CONSUMER_ID 8-digit strings)
+      const oldConsumerIds = [...new Set(
         uncheckedRecords
-          .map(r => r.CustomerId)
+          .map(r => r.OldConsumerId)
           .filter(id => id != null && String(id).trim() !== '')
           .map(id => String(id).trim())
       )];
 
-      if (customerIds.length === 0) {
+      if (oldConsumerIds.length === 0) {
         return successResponse(res, {
           checked: uncheckedRecords.length,
           updated: 0,
-          message: 'No valid Customer IDs to check'
-        }, 'MDM Entry check completed - no valid Customer IDs');
+          message: 'No valid Old Consumer IDs to check'
+        }, 'MDM Entry check completed - no valid Old Consumer IDs');
       }
 
-      // Batch check against Customer table using raw SQL
+      // Batch check against Customer table using OLD_CONSUMER_ID (the correct join key)
       // Process in chunks of 500 to avoid query size limits
-      const foundCustomerIds = new Set();
+      const foundOldConsumerIds = new Set();
       const chunkSize = 500;
 
-      for (let i = 0; i < customerIds.length; i += chunkSize) {
-        const chunk = customerIds.slice(i, i + chunkSize);
+      for (let i = 0; i < oldConsumerIds.length; i += chunkSize) {
+        const chunk = oldConsumerIds.slice(i, i + chunkSize);
         const placeholders = chunk.map((_, idx) => `:id${idx}`).join(',');
         const replacements = {};
         chunk.forEach((id, idx) => { replacements[`id${idx}`] = id; });
 
         const query = `
-          SELECT DISTINCT [OLD_CONSUMER_ID]
+          SELECT DISTINCT CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) AS OLD_CONSUMER_ID
           FROM [${DB_NAME}].[dbo].[Customer]
-          WHERE [OLD_CONSUMER_ID] IN (${placeholders})
+          WHERE CAST([OLD_CONSUMER_ID] AS VARCHAR(50)) IN (${placeholders})
         `;
 
         const results = await sequelize.query(query, {
@@ -275,14 +275,14 @@ class CMSDashboardController {
           type: sequelize.QueryTypes.SELECT
         });
 
-        results.forEach(r => foundCustomerIds.add(r.OLD_CONSUMER_ID));
+        results.forEach(r => foundOldConsumerIds.add(String(r.OLD_CONSUMER_ID).trim()));
       }
 
       // Update matching records to IsMDMEntry = 1
       let updatedCount = 0;
-      if (foundCustomerIds.size > 0) {
+      if (foundOldConsumerIds.size > 0) {
         const idsToUpdate = uncheckedRecords
-          .filter(r => r.CustomerId != null && foundCustomerIds.has(String(r.CustomerId).trim()))
+          .filter(r => r.OldConsumerId != null && foundOldConsumerIds.has(String(r.OldConsumerId).trim()))
           .map(r => r.Id);
 
         if (idsToUpdate.length > 0) {
@@ -298,11 +298,11 @@ class CMSDashboardController {
         }
       }
 
-      logger.info(`MDM Entry check: checked ${uncheckedRecords.length}, found ${foundCustomerIds.size} in Customer DB, updated ${updatedCount} records`);
+      logger.info(`MDM Entry check: checked ${uncheckedRecords.length}, found ${foundOldConsumerIds.size} in Customer DB, updated ${updatedCount} records`);
 
       return successResponse(res, {
         checked: uncheckedRecords.length,
-        foundInCustomerDB: foundCustomerIds.size,
+        foundInCustomerDB: foundOldConsumerIds.size,
         updated: updatedCount
       }, `MDM Entry check completed. ${updatedCount} records updated.`);
 
@@ -327,7 +327,7 @@ class CMSDashboardController {
             { IsMDMEntry: null }
           ]
         },
-        attributes: ['Id', 'CustomerId', 'NewMeterNoOCR']
+        attributes: ['Id', 'OldConsumerId', 'CustomerId', 'NewMeterNoOCR']
       });
 
       return successResponse(res, records, `Found ${records.length} unchecked MDM records`);
@@ -390,18 +390,19 @@ class CMSDashboardController {
       }
 
       if (search) {
-        whereClauses.push(`(m.CustomerId LIKE :search OR m.OldConsumerId LIKE :search OR m.NewMeterNoOCR LIKE :search OR m.OldMeterNoOCR LIKE :search OR m.MeterInstalledBy LIKE :search)`);
+        whereClauses.push(`(m.OldConsumerId LIKE :search OR m.NewMeterNoOCR LIKE :search OR m.OldMeterNoOCR LIKE :search OR m.MeterInstalledBy LIKE :search)`);
         replacements.search = `%${search}%`;
       }
 
       const whereSQL = whereClauses.join(' AND ');
 
       const query = `
-        SELECT m.CustomerId, c.CUSTOMER_NAME, c.ADDRESS, c.MOBILE_NO,
+        SELECT m.OldConsumerId, m.CustomerId, c.CUSTOMER_NAME, c.ADDRESS, c.MOBILE_NO,
                c.CHANGED_MOBILE_NO, c.SECONDARY_MOBILE_NO, c.NOCS,
                m.InstallDate, m.NewMeterNoOCR, m.Latitude, m.Longitude
         FROM [${DB_NAME}].[dbo].[MeterInfo] m
-        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c ON LTRIM(RTRIM(m.CustomerId)) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
+        LEFT JOIN [${DB_NAME}].[dbo].[Customer] c
+          ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
         WHERE ${whereSQL}
         ORDER BY m.CreateDate DESC
       `;

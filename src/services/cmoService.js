@@ -1,5 +1,25 @@
 const { CMO, AdminSecurity, MeterInfo } = require('../models');
+const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
+
+const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
+
+/**
+ * Lookup the real Customer.ID (integer PK) from Customer table
+ * using OLD_CONSUMER_ID. Returns null if not found.
+ */
+async function resolveCustomerId(oldConsumerId) {
+  if (!oldConsumerId) return null;
+  try {
+    const [row] = await sequelize.query(
+      `SELECT [ID] FROM [${DB_NAME}].[dbo].[Customer] WHERE [OLD_CONSUMER_ID] = :oldConsumerId`,
+      { replacements: { oldConsumerId }, type: sequelize.QueryTypes.SELECT }
+    );
+    return row ? row.ID : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 // Helper function to format date for SQL Server (without timezone offset)
 function formatDateForSqlServer(dateString) {
@@ -147,14 +167,18 @@ class CMOService {
 
     for (const cmoData of cmos) {
       try {
-        // Check if record already exists by CustomerId/OldConsumerId
+        // OldConsumerId is the 8-digit OLD_CONSUMER_ID — the stable match key
+        const oldConsumerId = cmoData.OldConsumerId;
+
+        // Resolve the real Customer.ID (integer PK) from the Customer table.
+        // This ensures MeterInfo.CustomerId = Customer.ID even when Flutter
+        // was offline and only sent the OLD_CONSUMER_ID as CustomerId.
+        const resolvedCustomerId = await resolveCustomerId(oldConsumerId)
+          || cmoData.CustomerId;  // fallback: use whatever Flutter sent
+
+        // Check if a MeterInfo record already exists for this consumer
         const existingRecord = await MeterInfo.findOne({
-          where: {
-            [Op.or]: [
-              { CustomerId: cmoData.CustomerId },
-              { OldConsumerId: cmoData.OldConsumerId || cmoData.CustomerId }
-            ]
-          }
+          where: { OldConsumerId: oldConsumerId }
         });
 
         let meterInfo;
@@ -162,6 +186,8 @@ class CMOService {
         if (existingRecord) {
           // Update existing record - format dates properly
           const updateData = { ...cmoData };
+          updateData.CustomerId   = resolvedCustomerId;  // always set correct FK
+          updateData.OldConsumerId = oldConsumerId;
           if (updateData.InstallDate) {
             updateData.InstallDate = formatDateForSqlServer(updateData.InstallDate);
           }
@@ -178,8 +204,8 @@ class CMOService {
         } else {
           // Create new record in MeterInfo table
           meterInfo = await MeterInfo.create({
-            CustomerId: cmoData.CustomerId,
-            OldConsumerId: cmoData.OldConsumerId || cmoData.CustomerId,
+            CustomerId: resolvedCustomerId,      // Customer.ID (integer PK)
+            OldConsumerId: oldConsumerId,        // Customer.OLD_CONSUMER_ID (8-digit)
             InstallDate: formatDateForSqlServer(cmoData.InstallDate),
             Latitude: cmoData.Latitude,
             Longitude: cmoData.Longitude,
@@ -242,15 +268,17 @@ class CMOService {
         results.success.push({
           clientId: cmoData.LocalId,
           serverId: meterInfo.Id,
-          customerId: cmoData.CustomerId,
+          customerId: resolvedCustomerId,    // Customer.ID (integer PK)
+          oldConsumerId: oldConsumerId,      // Customer.OLD_CONSUMER_ID
           status: existingRecord ? 'updated' : 'created'
         });
       } catch (error) {
         // Log error without full stack trace to reduce log size
-        console.error(`Sync error for customer ${cmoData.CustomerId}: ${error.message}`);
+        console.error(`Sync error for consumer ${cmoData.OldConsumerId}: ${error.message}`);
         results.failed.push({
           clientId: cmoData.LocalId,
           customerId: cmoData.CustomerId,
+          oldConsumerId: cmoData.OldConsumerId,
           newMeterId: cmoData.NewMeterNoOCR,
           error: error.message
         });

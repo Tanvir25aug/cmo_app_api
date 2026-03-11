@@ -129,31 +129,53 @@ class MapController {
     }
   }
 
-  // Get all CMOs with coordinates from MeterInfo table
+  // Get CMOs with coordinates from MeterInfo — viewport-based (bbox) for performance.
+  // With 350,000+ records, loading all at once is not feasible.
+  // Client must send bounding box (latMin/latMax/lngMin/lngMax) so only the
+  // visible map area is queried. A hard limit caps results per request.
   async getCMOsWithCoordinates(req, res) {
     try {
-      const { search, status } = req.query;
+      const {
+        search, status,
+        latMin, latMax, lngMin, lngMax,   // bounding box (viewport)
+        limit = 500,                       // max records to return (default 500)
+      } = req.query;
 
-      // Build where clause - only get records with valid coordinates
+      // Hard cap: never return more than 1000 records in one call
+      const actualLimit = Math.min(Math.max(parseInt(limit) || 500, 1), 1000);
+
+      // Base filter — valid coordinates + active records
       let whereClause = {
-        Latitude: { [Op.ne]: null },
+        Latitude:  { [Op.ne]: null },
         Longitude: { [Op.ne]: null },
-        IsActive: 1
+        IsActive:  1,
       };
 
-      // Add search filter if provided
-      // Note: CustomerId is now an integer FK (Customer.ID) — search by OldConsumerId (8-digit string)
+      // Bounding box filter — only load what is visible on the map
+      if (latMin != null && latMax != null && lngMin != null && lngMax != null) {
+        const south = parseFloat(latMin);
+        const north = parseFloat(latMax);
+        const west  = parseFloat(lngMin);
+        const east  = parseFloat(lngMax);
+
+        if (!isNaN(south) && !isNaN(north) && !isNaN(west) && !isNaN(east)) {
+          whereClause.Latitude  = { [Op.between]: [south, north] };
+          whereClause.Longitude = { [Op.between]: [west,  east]  };
+        }
+      }
+
+      // Search filter — OldConsumerId is the readable 8-digit consumer ID
       if (search) {
         whereClause[Op.or] = [
           { OldConsumerId: { [Op.like]: `%${search}%` } },
           { OldMeterNoOCR: { [Op.like]: `%${search}%` } },
           { OldMeterNoOld: { [Op.like]: `%${search}%` } },
           { NewMeterNoOCR: { [Op.like]: `%${search}%` } },
-          { NewMeterNoOld: { [Op.like]: `%${search}%` } }
+          { NewMeterNoOld: { [Op.like]: `%${search}%` } },
         ];
       }
 
-      // Add status filter if provided
+      // Status filter
       if (status) {
         if (status === 'approved') {
           whereClause.IsApproved = 1;
@@ -168,20 +190,20 @@ class MapController {
       const meterInfoList = await MeterInfo.findAll({
         where: whereClause,
         order: [['Id', 'DESC']],
+        limit: actualLimit,
+        // Lightweight attributes — only what the map pin + info card needs
         attributes: [
           'Id', 'CustomerId', 'OldConsumerId', 'InstallDate',
           'Latitude', 'Longitude',
-          'OldMeterNoOCR', 'OldMeterNoOld', 'OldMeterReadingOCR', 'OldMeterReadingOld',
-          'OldMeterPeak', 'OldMeterOffPeak', 'OldMeterKVAR',
+          'OldMeterNoOCR', 'OldMeterNoOld',
           'NewMeterNoOCR', 'NewMeterNoOld', 'NewMeterType', 'NewMeterBillingType',
-          'BatteryCoverSealOCR', 'BatteryCoverSealOld',
-          'TerminalCoverSealOCR1', 'TerminalCoverSealOld1',
-          'TerminalCoverSealOCR2', 'TerminalCoverSealOld2',
           'HasSteelBox', 'MeterInstalledBy',
           'IsApproved', 'HasRevisit', 'RectifyStatus', 'RectifyMessage',
-          'CreateDate'
-        ]
+          'CreateDate',
+        ],
       });
+
+      const hasMore = meterInfoList.length === actualLimit;
 
       // Transform data for Flutter app
       const data = meterInfoList.map(meter => {
@@ -203,16 +225,9 @@ class MapController {
           latitude: m.Latitude ? parseFloat(m.Latitude) : null,
           longitude: m.Longitude ? parseFloat(m.Longitude) : null,
           oldMeterNumber: m.OldMeterNoOCR || m.OldMeterNoOld,
-          oldMeterReading: m.OldMeterReadingOCR || m.OldMeterReadingOld,
-          oldMeterPeak: m.OldMeterPeak,
-          oldMeterOffPeak: m.OldMeterOffPeak,
-          oldMeterKVAR: m.OldMeterKVAR,
           newMeterNumber: m.NewMeterNoOCR || m.NewMeterNoOld,
           newMeterType: m.NewMeterType,
           newMeterBillingType: m.NewMeterBillingType,
-          batteryCoverSeal: m.BatteryCoverSealOCR || m.BatteryCoverSealOld,
-          terminalSeal1: m.TerminalCoverSealOCR1 || m.TerminalCoverSealOld1,
-          terminalSeal2: m.TerminalCoverSealOCR2 || m.TerminalCoverSealOld2,
           hasSteelBox: m.HasSteelBox === 1,
           installedBy: m.MeterInstalledBy,
           status: status,
@@ -220,11 +235,16 @@ class MapController {
           hasRevisit: m.HasRevisit === 1,
           rectifyStatus: m.RectifyStatus,
           rectifyMessage: m.RectifyMessage,
-          createdAt: m.CreateDate
+          createdAt: m.CreateDate,
         };
       });
 
-      return successResponse(res, data, 'CMOs retrieved successfully');
+      return successResponse(res, {
+        cmos: data,
+        count: data.length,
+        hasMore,       // true if more records exist beyond the limit in this viewport
+        limit: actualLimit,
+      }, `${data.length} CMOs loaded${hasMore ? ` (showing first ${actualLimit}, zoom in for more)` : ''}`);
     } catch (error) {
       logger.error(`Get CMOs with coordinates error: ${error.message}`);
       return errorResponse(res, error.message, 500);

@@ -8,37 +8,38 @@ const { checkAppVersion } = require('../middleware/versionCheck');
 const { upload } = require('../config/multer');
 const { validateCMO } = require('../utils/validators');
 
-// All routes require authentication + current app version
+// All routes require authentication
 router.use(auth);
-router.use(checkAppVersion);
 
-// CMS Dashboard routes (must be before /:id)
-router.get('/cms-list', cmsDashboardController.getAll);
-router.patch('/cms-list/:id/approval', cmsDashboardController.updateApproval);
-router.post('/cms-list/:id/approval', cmsDashboardController.updateApproval); // Flutter uses POST
-router.get('/cms-export', cmsDashboardController.getExportData);
-router.get('/cms-statistics', cmsDashboardController.getStatistics);
-router.get('/filter-options', cmsDashboardController.getFilterOptions);
-router.post('/check-mdm-entry', cmsDashboardController.checkMDMEntry);
-router.get('/unchecked-mdm', cmsDashboardController.getUncheckedMDM);
-router.post('/bulk-update-mdm', cmsDashboardController.bulkUpdateMDM);
-router.post('/upload-customers', cmsDashboardController.uploadCustomers);
+// ─── CMS Web Dashboard routes ────────────────────────────────────────────────
+// These are called by the web browser/dashboard — NO version check applied.
+// Must be declared before /:id to avoid route conflicts.
+router.get('/cms-list',                 cmsDashboardController.getAll);
+router.patch('/cms-list/:id/approval',  cmsDashboardController.updateApproval);
+router.post('/cms-list/:id/approval',   cmsDashboardController.updateApproval); // Flutter uses POST
+router.get('/cms-export',               cmsDashboardController.getExportData);
+router.get('/cms-statistics',           cmsDashboardController.getStatistics);
+router.get('/filter-options',           cmsDashboardController.getFilterOptions);
+router.post('/check-mdm-entry',         cmsDashboardController.checkMDMEntry);
+router.get('/unchecked-mdm',            cmsDashboardController.getUncheckedMDM);
+router.post('/bulk-update-mdm',         cmsDashboardController.bulkUpdateMDM);
+router.post('/upload-customers',        cmsDashboardController.uploadCustomers);
 
-// Get routes
-router.get('/', cmoController.getAll);
-router.get('/statistics', cmoController.getStatistics);
-router.get('/unsynced', cmoController.getUnsynced);
-router.get('/bulk-stats', bulkCmoController.getBulkStats);
-router.get('/:id', cmoController.getById);
+// ─── Mobile App routes ────────────────────────────────────────────────────────
+// These are called by the Flutter app — version check IS enforced.
+// App must send X-App-Version-Code header with a current version.
+router.get('/',           checkAppVersion, cmoController.getAll);
+router.get('/statistics', checkAppVersion, cmoController.getStatistics);
+router.get('/unsynced',   checkAppVersion, cmoController.getUnsynced);
+router.get('/bulk-stats', checkAppVersion, bulkCmoController.getBulkStats);
+router.get('/:id',        checkAppVersion, cmoController.getById);
 
-// Post routes
-router.post('/', validateCMO, cmoController.create);
-router.post('/sync', cmoController.sync);
-router.post('/bulk-sync', bulkCmoController.bulkSync);
+router.post('/',          checkAppVersion, validateCMO, cmoController.create);
+router.post('/sync',      checkAppVersion, cmoController.sync);
+router.post('/bulk-sync', checkAppVersion, bulkCmoController.bulkSync);
 
-// Put/Delete routes
-router.put('/:id', validateCMO, cmoController.update);
-router.delete('/:id', cmoController.delete);
+router.put('/:id',        checkAppVersion, validateCMO, cmoController.update);
+router.delete('/:id',     checkAppVersion, cmoController.delete);
 
 // Upload routes (with file handling)
 router.post(

@@ -142,9 +142,9 @@ class MapController {
       };
 
       // Add search filter if provided
+      // Note: CustomerId is now an integer FK (Customer.ID) — search by OldConsumerId (8-digit string)
       if (search) {
         whereClause[Op.or] = [
-          { CustomerId: { [Op.like]: `%${search}%` } },
           { OldConsumerId: { [Op.like]: `%${search}%` } },
           { OldMeterNoOCR: { [Op.like]: `%${search}%` } },
           { OldMeterNoOld: { [Op.like]: `%${search}%` } },

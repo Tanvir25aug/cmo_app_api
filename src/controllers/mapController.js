@@ -139,6 +139,7 @@ class MapController {
         search, status,
         latMin, latMax, lngMin, lngMax,   // bounding box (viewport)
         limit = 500,                       // max records to return (default 500)
+        dateFrom, dateTo,                  // install date range (YYYY-MM-DD)
       } = req.query;
 
       // Hard cap: never return more than 1000 records in one call
@@ -185,6 +186,14 @@ class MapController {
         } else if (status === 'revisit') {
           whereClause.HasRevisit = 1;
         }
+      }
+
+      // Install date range filter
+      if (dateFrom || dateTo) {
+        const dateFilter = {};
+        if (dateFrom) dateFilter[Op.gte] = new Date(dateFrom + 'T00:00:00');
+        if (dateTo)   dateFilter[Op.lte] = new Date(dateTo   + 'T23:59:59');
+        whereClause.InstallDate = dateFilter;
       }
 
       const meterInfoList = await MeterInfo.findAll({

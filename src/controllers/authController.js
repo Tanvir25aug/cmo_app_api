@@ -123,6 +123,25 @@ class AuthController {
     }
   }
 
+  // Change own password (any authenticated user)
+  async changePassword(req, res) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return errorResponse(res, 'Current password and new password are required', 400);
+      }
+      if (newPassword.length < 4) {
+        return errorResponse(res, 'New password must be at least 4 characters', 400);
+      }
+      const result = await authService.changePassword(req.securityId, currentPassword, newPassword);
+      logger.info(`Password changed for user securityId: ${req.securityId}`);
+      return successResponse(res, result, 'Password changed successfully');
+    } catch (error) {
+      logger.error(`Change password error: ${error.message}`);
+      return errorResponse(res, error.message, 400);
+    }
+  }
+
   // Delete user (admin only)
   async deleteUser(req, res) {
     try {

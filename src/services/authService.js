@@ -184,6 +184,19 @@ class AuthService {
     return { message: 'User deleted successfully' };
   }
 
+  // Change password (self-service for any authenticated user)
+  async changePassword(securityId, currentPassword, newPassword) {
+    const user = await AdminSecurity.findByPk(securityId);
+    if (!user) throw new Error('User not found');
+
+    if (!user.comparePassword(currentPassword)) {
+      throw new Error('Current password is incorrect');
+    }
+
+    await user.update({ UserPwd: newPassword });
+    return { message: 'Password changed successfully' };
+  }
+
   // Check if user is admin
   async isAdmin(securityId) {
     const user = await AdminSecurity.findByPk(securityId);

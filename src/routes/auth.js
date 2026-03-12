@@ -12,6 +12,7 @@ router.post('/refresh-token', authController.refreshToken);
 // Protected routes
 router.get('/profile', auth, authController.getProfile);
 router.put('/profile', auth, authController.updateProfile);
+router.post('/change-password', auth, authController.changePassword);
 router.post('/logout', auth, authController.logout);
 
 // Admin User Management routes (protected + admin only)

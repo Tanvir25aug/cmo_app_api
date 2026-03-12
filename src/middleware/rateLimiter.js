@@ -16,12 +16,25 @@ const apiLimiter = rateLimit({
 });
 
 // Strict limiter for auth endpoints (prevent brute force)
+// Internal trusted IPs (e.g. CMS backend server) are whitelisted via TRUSTED_IPS env var
+const TRUSTED_IPS = (process.env.TRUSTED_IPS || '')
+  .split(',')
+  .map(ip => ip.trim())
+  .filter(Boolean);
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 login attempts per 15 minutes
+  max: 10, // 10 login attempts per 15 minutes per IP
   message: {
     success: false,
     message: 'Too many login attempts, please try again after 15 minutes.'
+  },
+  skip: (req) => {
+    const clientIp = req.ip || '';
+    // Allow plain IPv4 and IPv4-mapped-IPv6 (::ffff:x.x.x.x)
+    return TRUSTED_IPS.some(trusted =>
+      clientIp === trusted || clientIp === `::ffff:${trusted}`
+    );
   }
 });
 

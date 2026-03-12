@@ -41,6 +41,7 @@ class CMSDashboardController {
         installedBy,
         meterType,
         hasSteelBox,
+        cpcCpr,
       } = req.query;
 
       const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -76,8 +77,8 @@ class CMSDashboardController {
         replacements.hasSteelBox = parseInt(hasSteelBox);
       }
       if (nocs) {
-        whereClauses.push('c.NOCS LIKE :nocs');
-        replacements.nocs = `%${nocs}%`;
+        whereClauses.push('c.NOCS = :nocs');
+        replacements.nocs = nocs;
       }
       if (dateFrom) {
         whereClauses.push("m.InstallDate >= :dateFrom");
@@ -91,9 +92,14 @@ class CMSDashboardController {
         whereClauses.push('a.UserName LIKE :installedBy');
         replacements.installedBy = `%${installedBy}%`;
       }
+      if (cpcCpr !== undefined && cpcCpr !== '') {
+        whereClauses.push('c.CPC_CPR = :cpcCpr');
+        replacements.cpcCpr = cpcCpr;
+      }
       if (search) {
         whereClauses.push(`(
-          m.OldConsumerId LIKE :search OR
+          LTRIM(RTRIM(m.OldConsumerId)) LIKE :search OR
+          CAST(c.OLD_CONSUMER_ID AS VARCHAR(50)) LIKE :search OR
           m.NewMeterNoOCR LIKE :search OR
           m.OldMeterNoOCR LIKE :search OR
           c.CUSTOMER_NAME LIKE :search
@@ -124,14 +130,17 @@ class CMSDashboardController {
           m.IsApproved, m.IsMDMEntry, m.IsAppsEntry,
           m.HasRevisit, m.RectifyStatus,
           m.CreateBy, m.CreateDate, m.UpdateDate,
-          c.CUSTOMER_NAME AS CustomerName,
-          c.ADDRESS       AS CustomerAddress,
-          c.MOBILE_NO     AS CustomerMobile,
-          c.NOCS          AS CustomerNOCS,
-          c.FEEDER_NAME   AS CustomerFeeder,
-          c.ZONE          AS CustomerZone,
-          a.UserName      AS InstallerName,
-          COUNT(*) OVER()  AS TotalCount
+          c.CUSTOMER_NAME       AS CustomerName,
+          c.ADDRESS             AS Address,
+          c.MOBILE_NO           AS MobileNo,
+          c.CHANGED_MOBILE_NO   AS ChangedMobileNo,
+          c.SECONDARY_MOBILE_NO AS SecondaryMobileNo,
+          c.NOCS                AS NOCS,
+          c.CPC_CPR             AS CpcCpr,
+          c.FEEDER_NAME         AS CustomerFeeder,
+          c.ZONE                AS CustomerZone,
+          a.UserName            AS InstallerName,
+          COUNT(*) OVER()       AS TotalCount
         FROM [${DB_NAME}].[dbo].[MeterInfo] m WITH (NOLOCK)
         LEFT JOIN [${DB_NAME}].[dbo].[Customer] c WITH (NOLOCK)
           ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
@@ -378,7 +387,7 @@ class CMSDashboardController {
    */
   async getExportData(req, res) {
     try {
-      const { search, isApproved } = req.query;
+      const { search, isApproved, nocs, dateFrom, dateTo, isMDMEntry, cpcCpr } = req.query;
       const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
 
       let whereClauses = ['m.IsActive = 1'];
@@ -388,17 +397,38 @@ class CMSDashboardController {
         whereClauses.push('m.IsApproved = :isApproved');
         replacements.isApproved = parseInt(isApproved);
       }
-
+      if (isMDMEntry !== undefined && isMDMEntry !== '') {
+        whereClauses.push('m.IsMDMEntry = :isMDMEntry');
+        replacements.isMDMEntry = parseInt(isMDMEntry);
+      }
+      if (nocs) {
+        whereClauses.push('c.NOCS = :nocs');
+        replacements.nocs = nocs;
+      }
+      if (dateFrom) {
+        whereClauses.push("m.InstallDate >= :dateFrom");
+        replacements.dateFrom = dateFrom;
+      }
+      if (dateTo) {
+        whereClauses.push("m.InstallDate <= :dateTo");
+        replacements.dateTo = dateTo + ' 23:59:59';
+      }
+      if (cpcCpr !== undefined && cpcCpr !== '') {
+        whereClauses.push('c.CPC_CPR = :cpcCpr');
+        replacements.cpcCpr = cpcCpr;
+      }
       if (search) {
-        whereClauses.push(`(m.OldConsumerId LIKE :search OR m.NewMeterNoOCR LIKE :search OR m.OldMeterNoOCR LIKE :search OR m.MeterInstalledBy LIKE :search)`);
+        whereClauses.push(`(LTRIM(RTRIM(m.OldConsumerId)) LIKE :search OR m.NewMeterNoOCR LIKE :search OR m.OldMeterNoOCR LIKE :search OR c.CUSTOMER_NAME LIKE :search)`);
         replacements.search = `%${search}%`;
       }
 
       const whereSQL = whereClauses.join(' AND ');
 
       const query = `
-        SELECT m.OldConsumerId, m.CustomerId, c.CUSTOMER_NAME, c.ADDRESS, c.MOBILE_NO,
-               c.CHANGED_MOBILE_NO, c.SECONDARY_MOBILE_NO, c.NOCS,
+        SELECT m.OldConsumerId, m.CustomerId,
+               c.CUSTOMER_NAME, c.ADDRESS, c.MOBILE_NO,
+               c.CHANGED_MOBILE_NO, c.SECONDARY_MOBILE_NO,
+               c.NOCS, c.CPC_CPR,
                m.InstallDate, m.NewMeterNoOCR, m.Latitude, m.Longitude
         FROM [${DB_NAME}].[dbo].[MeterInfo] m
         LEFT JOIN [${DB_NAME}].[dbo].[Customer] c
@@ -534,7 +564,7 @@ class CMSDashboardController {
     try {
       const DB_NAME = process.env.DB_NAME || 'MeterOCRDPDC';
 
-      const [nocsRows, installerRows] = await Promise.all([
+      const [nocsRows, installerRows, cpcCprRows] = await Promise.all([
         sequelize.query(`
           SELECT DISTINCT LTRIM(RTRIM(c.NOCS)) AS nocs
           FROM [${DB_NAME}].[dbo].[MeterInfo] m WITH (NOLOCK)
@@ -555,12 +585,24 @@ class CMSDashboardController {
             AND a.UserName IS NOT NULL
             AND LTRIM(RTRIM(a.UserName)) <> ''
           ORDER BY userName ASC
+        `, { type: sequelize.QueryTypes.SELECT }),
+
+        sequelize.query(`
+          SELECT DISTINCT LTRIM(RTRIM(c.CPC_CPR)) AS cpcCpr
+          FROM [${DB_NAME}].[dbo].[MeterInfo] m WITH (NOLOCK)
+          INNER JOIN [${DB_NAME}].[dbo].[Customer] c WITH (NOLOCK)
+            ON LTRIM(RTRIM(CAST(m.OldConsumerId AS VARCHAR(50)))) = CAST(c.OLD_CONSUMER_ID AS VARCHAR(50))
+          WHERE m.IsActive = 1
+            AND c.CPC_CPR IS NOT NULL
+            AND LTRIM(RTRIM(c.CPC_CPR)) <> ''
+          ORDER BY cpcCpr ASC
         `, { type: sequelize.QueryTypes.SELECT })
       ]);
 
       return successResponse(res, {
         nocs: nocsRows.map(r => r.nocs),
-        installers: installerRows.map(r => r.userName)
+        installers: installerRows.map(r => r.userName),
+        cpcCpr: cpcCprRows.map(r => r.cpcCpr)
       }, 'Filter options retrieved successfully');
 
     } catch (error) {
